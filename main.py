@@ -4,6 +4,13 @@ load_dotenv()
 
 import streamlit as st
 
+def get_secret(key):
+    """Get secret from Streamlit secrets or environment variables"""
+    try:
+        return st.secrets[key]
+    except (KeyError, FileNotFoundError):
+        return os.getenv(key)
+
 # Configure the page
 st.set_page_config(
     page_title="NGL Strategy RAG Assistant",
@@ -454,8 +461,8 @@ else:
         # Cache the resources
         @st.cache_resource
         def get_index():
-            LLAMACLOUD_API_KEY = os.getenv('LLAMA_CLOUD_API_KEY')
-            LLAMACLOUD_ORG_ID = os.getenv('LLAMA_ORG_ID')
+            LLAMACLOUD_API_KEY = get_secret('LLAMA_CLOUD_API_KEY')
+            LLAMACLOUD_ORG_ID = get_secret('LLAMA_ORG_ID')
 
             return LlamaCloudIndex(
                 name="NGL_Strategy",
@@ -472,7 +479,7 @@ else:
                 request_timeout=120.0,
                 additional_kwargs={
                     'headers': {
-                        'Authorization': f'Bearer {os.getenv("OLLAMA_API_KEY")}'
+                        'Authorization': f'Bearer {get_secret("OLLAMA_API_KEY")}'
                     }
                 }
             )
@@ -495,7 +502,8 @@ else:
 
         # Display chat history
         for i, message in enumerate(st.session_state.messages):
-            with st.chat_message(message["role"]):
+            avatar = "🤖" if message["role"] == "assistant" else "👤"
+            with st.chat_message(message["role"], avatar=avatar):
                 # Clean up the message content
                 clean_content = clean_text(message["content"])
                 # Display with ChatGPT styling
@@ -507,11 +515,11 @@ else:
             st.session_state.messages.append({"role": "user", "content": prompt})
 
             # Display user message
-            with st.chat_message("user"):
+            with st.chat_message("user", avatar="👤"):
                 st.markdown(prompt)
 
             # Generate response
-            with st.chat_message("assistant"):
+            with st.chat_message("assistant", avatar="🤖"):
                 with st.spinner("Thinking..."):
                     try:
                         engine = get_query_engine()

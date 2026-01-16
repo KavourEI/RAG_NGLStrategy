@@ -413,7 +413,7 @@ else:
     elif page == "Chat":
         # Import here to avoid loading if not needed
         from llama_cloud_services import LlamaCloudIndex
-        from llama_index.llms.ollama import Ollama
+        from llama_index.llms.openai import OpenAI
         import re
 
         def clean_text(text):
@@ -481,21 +481,18 @@ else:
 
         @st.cache_resource
         def get_llm():
-            OLLAMA_ORG_ID = get_secret('OLLAMA_ORG_ID')
+            OLLAMA_API_KEY = get_secret('OLLAMA_API_KEY')
             
-            if not OLLAMA_ORG_ID:
-                st.error("❌ Error: OLLAMA_ORG_ID secret not configured. Please add it to Streamlit secrets.")
+            if not OLLAMA_API_KEY:
+                st.error("❌ Error: OLLAMA_API_KEY secret not configured. Please add it to Streamlit secrets.")
                 st.stop()
             
-            return Ollama(
+            # Use OpenAI-compatible endpoint for Ollama Cloud
+            return OpenAI(
+                api_key=OLLAMA_API_KEY,
+                api_base="https://api.ollama.ai/v1",  # Ollama Cloud API endpoint
                 model="gpt-oss:120b",
-                base_url="https://api.ollama.com",
-                request_timeout=120.0,
-                additional_kwargs={
-                    'headers': {
-                        'Authorization': f'Bearer {OLLAMA_ORG_ID}'
-                    }
-                }
+                request_timeout=120.0
             )
 
         @st.cache_resource

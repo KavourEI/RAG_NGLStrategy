@@ -19,7 +19,7 @@ print("=" * 60)
 required_secrets = [
     ('LLAMA_CLOUD_API_KEY', 'LlamaCloud API Key'),
     ('LLAMA_ORG_ID', 'LlamaCloud Organization ID'),
-    ('OLLAMA_ORG_ID', 'Ollama Organization ID'),
+    ('OLLAMA_API_KEY', 'Ollama Cloud API Key'),
 ]
 
 all_set = True

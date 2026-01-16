@@ -10,7 +10,7 @@ Your Streamlit Cloud app needs these three secrets configured:
 
 1. **LLAMA_CLOUD_API_KEY** - Your LlamaCloud API key for document indexing
 2. **LLAMA_ORG_ID** - Your LlamaCloud organization ID
-3. **OLLAMA_ORG_ID** - Your Ollama organization ID (used as Bearer token for API calls)
+3. **OLLAMA_API_KEY** - Your Ollama Cloud API key for language model inference
 
 ## How to Add Secrets to Streamlit Cloud
 
@@ -27,7 +27,7 @@ In the secrets editor, add your credentials in TOML format:
 ```toml
 LLAMA_CLOUD_API_KEY = "your_actual_api_key_here"
 LLAMA_ORG_ID = "your_org_id_here"
-OLLAMA_ORG_ID = "your_ollama_org_id_here"
+OLLAMA_API_KEY = "your_ollama_cloud_api_key_here"
 ```
 
 **Important:** 
@@ -54,7 +54,7 @@ If everything is configured correctly, you should see:
 ```
 ✅ LlamaCloud API Key: ****...****
 ✅ LlamaCloud Organization ID: ****...****
-✅ Ollama Organization ID: ****...****
+✅ Ollama Cloud API Key: ****...****
 ```
 
 ## Troubleshooting
@@ -78,7 +78,7 @@ If everything is configured correctly, you should see:
    # Create a .env file in your project root
    echo 'LLAMA_CLOUD_API_KEY=your_key' > .env
    echo 'LLAMA_ORG_ID=your_org_id' >> .env
-   echo 'OLLAMA_ORG_ID=your_ollama_id' >> .env
+   echo 'OLLAMA_API_KEY=your_ollama_api_key' >> .env
    
    # Run the verification
    python verify_secrets.py
@@ -87,7 +87,7 @@ If everything is configured correctly, you should see:
 5. **Check API credentials:**
    - Log in to LlamaCloud and verify your API key is active
    - Ensure the organization ID matches your LlamaCloud account
-   - Verify Ollama credentials are correct
+   - Get your Ollama Cloud API key from https://ollama.ai (or your Ollama Cloud provider)
 
 ## App Code Changes
 
@@ -104,7 +104,7 @@ For local development, create a `.env` file in your project root:
 ```
 LLAMA_CLOUD_API_KEY=sk-...
 LLAMA_ORG_ID=org-...
-OLLAMA_ORG_ID=...
+OLLAMA_API_KEY=...
 ```
 
 The app will automatically load these via `python-dotenv`.
@@ -113,6 +113,6 @@ The app will automatically load these via `python-dotenv`.
 
 The app uses:
 - **LlamaCloud API:** For document indexing and retrieval (requires `LLAMA_CLOUD_API_KEY` and `LLAMA_ORG_ID`)
-- **Ollama API:** For language model inference (requires `OLLAMA_ORG_ID` as Bearer token)
+- **Ollama Cloud API:** For language model inference via OpenAI-compatible endpoint at `https://api.ollama.ai/v1` (requires `OLLAMA_API_KEY`)
 
 Make sure both API services are accessible and your credentials have the necessary permissions.

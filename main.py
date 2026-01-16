@@ -463,6 +463,14 @@ else:
         def get_index():
             LLAMACLOUD_API_KEY = get_secret('LLAMA_CLOUD_API_KEY')
             LLAMACLOUD_ORG_ID = get_secret('LLAMA_ORG_ID')
+            
+            if not LLAMACLOUD_API_KEY:
+                st.error("❌ Error: LLAMA_CLOUD_API_KEY secret not configured. Please add it to Streamlit secrets.")
+                st.stop()
+            
+            if not LLAMACLOUD_ORG_ID:
+                st.error("❌ Error: LLAMA_ORG_ID secret not configured. Please add it to Streamlit secrets.")
+                st.stop()
 
             return LlamaCloudIndex(
                 name="NGL_Strategy",
@@ -473,22 +481,32 @@ else:
 
         @st.cache_resource
         def get_llm():
+            OLLAMA_ORG_ID = get_secret('OLLAMA_ORG_ID')
+            
+            if not OLLAMA_ORG_ID:
+                st.error("❌ Error: OLLAMA_ORG_ID secret not configured. Please add it to Streamlit secrets.")
+                st.stop()
+            
             return Ollama(
                 model="gpt-oss:120b",
-                base_url="https://ollama.com",
+                base_url="https://api.ollama.com",
                 request_timeout=120.0,
                 additional_kwargs={
                     'headers': {
-                        'Authorization': f'Bearer {get_secret("OLLAMA_API_KEY")}'
+                        'Authorization': f'Bearer {OLLAMA_ORG_ID}'
                     }
                 }
             )
 
         @st.cache_resource
         def get_query_engine():
-            index = get_index()
-            llm = get_llm()
-            return index.as_query_engine(llm=llm)
+            try:
+                index = get_index()
+                llm = get_llm()
+                return index.as_query_engine(llm=llm)
+            except Exception as e:
+                st.error(f"❌ Error initializing query engine: {str(e)}")
+                st.stop()
 
         # Chatbot Page
         st.title("Chat")

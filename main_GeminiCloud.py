@@ -37,9 +37,10 @@ st.markdown("""
         border-right: 1px solid #2f2f2f !important;
     }
 
+    /* Include emoji-capable fonts in the stack so emoji use system color fonts */
     [data-testid="stSidebar"] * {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Segoe UI Emoji', 'Noto Color Emoji', 'Apple Color Emoji', sans-serif !important;
         color: #ececf1 !important;
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
     }
 
     /* Sidebar headers */
@@ -48,6 +49,7 @@ st.markdown("""
         font-size: 1.25rem !important;
         font-weight: 600 !important;
         padding: 0.5rem 0 !important;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Segoe UI Emoji', 'Noto Color Emoji', 'Apple Color Emoji', sans-serif !important;
     }
 
     /* Sidebar buttons */
@@ -60,6 +62,7 @@ st.markdown("""
         font-size: 0.875rem !important;
         transition: all 0.2s !important;
         width: 100% !important;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Segoe UI Emoji', 'Noto Color Emoji', 'Apple Color Emoji', sans-serif !important;
     }
 
     [data-testid="stSidebar"] .stButton button:hover {
@@ -74,6 +77,7 @@ st.markdown("""
         color: #ececf1 !important;
         border-radius: 6px !important;
         padding: 0.75rem !important;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Segoe UI Emoji', 'Noto Color Emoji', 'Apple Color Emoji', sans-serif !important;
     }
 
     [data-testid="stSidebar"] input:focus {
@@ -92,6 +96,7 @@ st.markdown("""
         border-radius: 6px !important;
         cursor: pointer !important;
         transition: all 0.2s !important;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Segoe UI Emoji', 'Noto Color Emoji', 'Apple Color Emoji', sans-serif !important;
     }
 
     [data-testid="stSidebar"] .stRadio label:hover {
@@ -105,18 +110,19 @@ st.markdown("""
         border-radius: 6px !important;
         padding: 0.5rem !important;
         font-size: 0.875rem !important;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Segoe UI Emoji', 'Noto Color Emoji', 'Apple Color Emoji', sans-serif !important;
     }
 
     /* All text color */
     html, body, [class*="css"], p, div, span, label {
         color: #ececf1 !important;
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Segoe UI Emoji', 'Noto Color Emoji', 'Apple Color Emoji', sans-serif !important;
     }
 
     /* Headers - ChatGPT style */
     h1, h2, h3 {
         color: #ececf1 !important;
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Segoe UI Emoji', 'Noto Color Emoji', 'Apple Color Emoji', sans-serif !important;
         font-weight: 600 !important;
     }
 
@@ -157,7 +163,7 @@ st.markdown("""
         color: #ececf1 !important;
         font-size: 16px !important;
         line-height: 1.75 !important;
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Segoe UI Emoji', 'Noto Color Emoji', 'Apple Color Emoji', sans-serif !important;
     }
 
     /* Chat input */
@@ -182,6 +188,7 @@ st.markdown("""
         color: #ececf1 !important;
         padding: 0.75rem 1rem !important;
         font-size: 16px !important;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Segoe UI Emoji', 'Noto Color Emoji', 'Apple Color Emoji', sans-serif !important;
     }
 
     .stChatInput:focus {

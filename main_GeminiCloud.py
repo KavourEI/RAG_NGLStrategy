@@ -245,7 +245,63 @@ st.markdown("""
     @media (max-width: 760px) {
         :root { --is-mobile: 1; }
         /* Force sidebar off-canvas visually */
-        [data-testid="stSidebar"] { position: fixed !important; transform: translateX(-110%) !important; z-index: 1200 !important; }
+        [data-testid="stSidebar"] {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            height: 100vh !important;
+            transform: translateX(-110%) !important;
+            z-index: 1300 !important;
+            transition: transform 240ms ease-in-out !important;
+            width: calc(var(--sidebar-width)) !important;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5) !important;
+        }
+
+        /* When the class is set on the root, reveal the sidebar */
+        .mobile-sidebar-open [data-testid="stSidebar"] {
+            transform: translateX(0) !important;
+        }
+
+        /* overlay shown when sidebar open */
+        #mobile-sidebar-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.45);
+            z-index: 1290;
+            transition: opacity 180ms ease-in-out;
+        }
+        .mobile-sidebar-open #mobile-sidebar-overlay {
+            display: block;
+            opacity: 1;
+        }
+
+        /* toggle button */
+        #mobile-sidebar-toggle {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            z-index: 1310;
+            background: rgba(20,20,20,0.85);
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.06);
+            padding: 8px 10px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: calc(var(--base-font-size) * 1.0);
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.4);
+        }
+
+        /* when sidebar is open, prevent page from being scrolled */
+        .mobile-sidebar-open body, .mobile-sidebar-open html {
+            overflow: hidden !important;
+            touch-action: none !important;
+        }
+
         /* Content should be full width */
         .main .block-container { max-width: 100% !important; padding-left: 12px !important; padding-right: 12px !important; }
         /* Make bottom input use full width and sit above the safe area */
@@ -275,7 +331,7 @@ st.markdown("""
     let baseFont = Math.min(Math.max(Math.round(vw * 0.012 + 8), 12), 18);
 
     if(isMobile){
-      sidebarPx = 0; // no persistent sidebar on mobile
+      sidebarPx = 280; // default overlay width on mobile
       // content should use almost full viewport width with small horizontal margins
       contentPx = Math.max(vw - 24, 320);
       // smaller bottom padding so input doesn't consume too much space
@@ -306,6 +362,71 @@ st.markdown("""
   window.addEventListener('resize', updateSizesDebounced);
   // handle orientation change (mobile devices)
   window.addEventListener('orientationchange', function(){ setTimeout(setSizes, 120); });
+
+  /* MOBILE SIDEBAR TOGGLE INJECTION */
+  function ensureMobileControls(){
+    if(document.getElementById('mobile-sidebar-toggle')) return;
+
+    // create overlay
+    const overlay = document.createElement('div');
+    overlay.id = 'mobile-sidebar-overlay';
+    overlay.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(overlay);
+
+    // create toggle button (hamburger)
+    const btn = document.createElement('button');
+    btn.id = 'mobile-sidebar-toggle';
+    btn.type = 'button';
+    btn.title = 'Show sidebar';
+    btn.innerHTML = '☰ <span style="font-weight:600;margin-left:6px">Menu</span>';
+    btn.setAttribute('aria-expanded', 'false');
+    btn.setAttribute('aria-controls', 'stSidebar');
+    document.body.appendChild(btn);
+
+    function openSidebar(){
+      document.documentElement.classList.add('mobile-sidebar-open');
+      btn.setAttribute('aria-expanded', 'true');
+    }
+    function closeSidebar(){
+      document.documentElement.classList.remove('mobile-sidebar-open');
+      btn.setAttribute('aria-expanded', 'false');
+    }
+
+    btn.addEventListener('click', function(e){
+      e.stopPropagation();
+      if(document.documentElement.classList.contains('mobile-sidebar-open')) closeSidebar();
+      else openSidebar();
+    });
+
+    overlay.addEventListener('click', function(){ closeSidebar(); });
+
+    // close on escape
+    window.addEventListener('keydown', function(ev){
+      if(ev.key === 'Escape') closeSidebar();
+    });
+
+    // tap outside sidebar closes it (detect clicks outside)
+    document.addEventListener('click', function(e){
+      if(!document.documentElement.classList.contains('mobile-sidebar-open')) return;
+      const sidebar = document.querySelector('[data-testid="stSidebar"]');
+      if(!sidebar) return;
+      if(!sidebar.contains(e.target) && e.target.id !== 'mobile-sidebar-toggle') closeSidebar();
+    }, {capture: true});
+
+    // when touch-moving inside sidebar allow scroll, otherwise prevent body scroll
+    document.addEventListener('touchstart', function(){}, {passive: true});
+  }
+
+  // create controls only for mobile viewport
+  function handleMobileControlsVisibility(){
+    const vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
+    const mobile = vw <= 760;
+    if(mobile) ensureMobileControls();
+    // hide button on desktop by CSS but leave it in DOM; nothing else required
+  }
+
+  handleMobileControlsVisibility();
+  window.addEventListener('resize', function(){ updateSizesDebounced(); handleMobileControlsVisibility(); });
 })();
 </script>
 """, unsafe_allow_html=True)

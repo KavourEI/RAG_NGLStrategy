@@ -16,37 +16,52 @@ st.set_page_config(
 # Custom CSS for ChatGPT-like appearance
 st.markdown("""
 <style>
+    :root{
+        /* dynamic vars set from JS on load/resize */
+        --sidebar-width: 336px; /* fallback */
+        --content-max-width: 1075px; /* fallback */
+        --bottom-padding: 150px; /* fallback */
+        --base-font-size: 16px; /* fallback */
+    }
+
     @import url('https://fonts.googleapis.com/css2?family=Söhne:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
 
     /* Main background - ChatGPT dark theme */
     .stApp {
         background-color: #343541 !important;
+        font-size: var(--base-font-size) !important;
     }
 
     /* Main content area */
     .main .block-container {
-        padding-top: 2rem !important;
-        padding-bottom: 2rem !important;
-        max-width: 67.2rem !important;
+        padding-top: calc(var(--base-font-size) * 1.25) !important;
+        padding-bottom: var(--bottom-padding) !important;
+        max-width: var(--content-max-width) !important;
         background-color: #343541 !important;
+        /* ensure content area leaves room for fixed bottom input */
+        max-height: calc(100vh - var(--bottom-padding)) !important;
+        overflow-y: auto !important;
     }
 
     /* Sidebar - ChatGPT style */
     [data-testid="stSidebar"] {
         background-color: #202123 !important;
         border-right: 1px solid #2f2f2f !important;
+        width: var(--sidebar-width) !important;
+        min-width: 180px !important;
     }
 
     /* Include emoji-capable fonts in the stack so emoji use system color fonts */
     [data-testid="stSidebar"] * {
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Segoe UI Emoji', 'Noto Color Emoji', 'Apple Color Emoji', sans-serif !important;
         color: #ececf1 !important;
+        font-size: calc(var(--base-font-size) * 0.95) !important;
     }
 
     /* Sidebar headers */
     [data-testid="stSidebar"] h1 {
         color: #ececf1 !important;
-        font-size: 1.25rem !important;
+        font-size: calc(var(--base-font-size) * 1.1) !important;
         font-weight: 600 !important;
         padding: 0.5rem 0 !important;
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Segoe UI Emoji', 'Noto Color Emoji', 'Apple Color Emoji', sans-serif !important;
@@ -59,7 +74,7 @@ st.markdown("""
         color: #ececf1 !important;
         border-radius: 6px !important;
         padding: 0.5rem 1rem !important;
-        font-size: 0.875rem !important;
+        font-size: calc(var(--base-font-size) * 0.9) !important;
         transition: all 0.2s !important;
         width: 100% !important;
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Segoe UI Emoji', 'Noto Color Emoji', 'Apple Color Emoji', sans-serif !important;
@@ -78,6 +93,7 @@ st.markdown("""
         border-radius: 6px !important;
         padding: 0.75rem !important;
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Segoe UI Emoji', 'Noto Color Emoji', 'Apple Color Emoji', sans-serif !important;
+        font-size: calc(var(--base-font-size) * 0.95) !important;
     }
 
     [data-testid="stSidebar"] input:focus {
@@ -113,42 +129,29 @@ st.markdown("""
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Segoe UI Emoji', 'Noto Color Emoji', 'Apple Color Emoji', sans-serif !important;
     }
 
-    /* All text color */
+    /* All text color and base font scaling */
     html, body, [class*="css"], p, div, span, label {
         color: #ececf1 !important;
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Segoe UI Emoji', 'Noto Color Emoji', 'Apple Color Emoji', sans-serif !important;
+        font-size: var(--base-font-size) !important;
     }
 
-    /* Headers - ChatGPT style */
+    /* Headers - scaled */
     h1, h2, h3 {
         color: #ececf1 !important;
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Segoe UI Emoji', 'Noto Color Emoji', 'Apple Color Emoji', sans-serif !important;
         font-weight: 600 !important;
     }
 
-    h1 {
-        font-size: 2rem !important;
-        margin-bottom: 1rem !important;
-    }
-
-    h2 {
-        font-size: 1.5rem !important;
-    }
-
-    h3 {
-        font-size: 1.25rem !important;
-    }
+    h1 { font-size: calc(var(--base-font-size) * 1.75) !important; margin-bottom: 1rem !important; }
+    h2 { font-size: calc(var(--base-font-size) * 1.35) !important; }
+    h3 { font-size: calc(var(--base-font-size) * 1.1) !important; }
 
     /* Chat messages - ChatGPT style */
     .stChatMessage {
         background-color: transparent !important;
-        padding: 1.5rem 0 !important;
+        padding: calc(var(--base-font-size) * 1.5) 0 !important;
         border-radius: 0 !important;
-    }
-
-    /* User messages */
-    .stChatMessage[data-testid*="user"] {
-        background-color: #343541 !important;
     }
 
     /* Assistant messages */
@@ -161,166 +164,33 @@ st.markdown("""
     /* Chat message content */
     .stChatMessage div {
         color: #ececf1 !important;
-        font-size: 16px !important;
+        font-size: calc(var(--base-font-size) * 1) !important;
         line-height: 1.75 !important;
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Segoe UI Emoji', 'Noto Color Emoji', 'Apple Color Emoji', sans-serif !important;
     }
 
-    /* Chat input */
-    .stChatInputContainer {
+    /* Chat input container and fixed bottom area use dynamic sidebar width for left offset */
+    [data-testid="stBottom"] {
+        position: fixed !important;
+        bottom: 0 !important;
+        left: var(--sidebar-width) !important;
+        right: 0 !important;
         background-color: #343541 !important;
+        padding: calc(var(--base-font-size) * 0.75) !important;
+        z-index: 1000 !important;
         border-top: 1px solid #2f2f2f !important;
-        padding: 1rem 0 !important;
     }
 
-    /* Chat floating input container - controls the bottom input area */
     .stChatFloatingInputContainer,
     [data-testid="stChatFloatingInputContainer"] {
         background-color: transparent !important;
         border-top: 1px solid #2f2f2f !important;
-        padding: 1rem !important;
-    }
-
-    .stChatInput {
-        background-color: #40414f !important;
-        border: 1px solid #ffffff !important;
-        border-radius: 12px !important;
-        color: #ececf1 !important;
-        padding: 0.75rem 1rem !important;
-        font-size: 16px !important;
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Segoe UI Emoji', 'Noto Color Emoji', 'Apple Color Emoji', sans-serif !important;
-    }
-
-    .stChatInput:focus {
-        border-color: #ffffff !important;
-        box-shadow: 0 0 0 1px #ffffff !important;
-        outline: none !important;
-    }
-
-    /* Buttons - ChatGPT style */
-    .stButton button {
-        background-color: #10a37f !important;
-        color: white !important;
-        border: none !important;
-        border-radius: 6px !important;
-        padding: 0.5rem 1rem !important;
-        font-weight: 500 !important;
-        font-size: 0.875rem !important;
-        transition: all 0.2s !important;
-    }
-
-    .stButton button:hover {
-        background-color: #1a7f64 !important;
-    }
-
-    /* Info boxes */
-    .stInfo {
-        background-color: #444654 !important;
-        border-left: 4px solid #10a37f !important;
-        color: #ececf1 !important;
-        border-radius: 4px !important;
-    }
-
-    /* Markdown content on intro page */
-    .stMarkdown {
-        color: #ececf1 !important;
-    }
-
-    .stMarkdown li {
-        color: #ececf1 !important;
-        margin: 0.5rem 0 !important;
-    }
-
-    /* Links */
-    a {
-        color: #10a37f !important;
-    }
-
-    a:hover {
-        color: #1a7f64 !important;
-    }
-
-    /* Divider */
-    hr {
-        border-color: #2f2f2f !important;
-        margin: 2rem 0 !important;
-    }
-
-    /* Scrollbar */
-    ::-webkit-scrollbar {
-        width: 8px !important;
-        height: 8px !important;
-    }
-
-    ::-webkit-scrollbar-track {
-        background: #343541 !important;
-    }
-
-    ::-webkit-scrollbar-thumb {
-        background: #565869 !important;
-        border-radius: 4px !important;
-    }
-
-    ::-webkit-scrollbar-thumb:hover {
-        background: #6e6e80 !important;
-    }
-
-    /* Code blocks */
-    code {
-        background-color: #2d2d2d !important;
-        color: #ececf1 !important;
-        padding: 0.2rem 0.4rem !important;
-        border-radius: 4px !important;
-        font-family: 'Söhne Mono', Monaco, 'Andale Mono', 'Ubuntu Mono', monospace !important;
-        font-size: 0.875rem !important;
-    }
-
-    pre {
-        background-color: #2d2d2d !important;
-        border-radius: 8px !important;
-        padding: 1rem !important;
-        overflow-x: auto !important;
-    }
-
-    /* Chat input placeholder text - white */
-    .stChatInput input::placeholder,
-    .stChatInput textarea::placeholder,
-    [data-testid="stChatInput"] input::placeholder,
-    [data-testid="stChatInput"] textarea::placeholder,
-    [data-testid="stChatInputTextArea"] textarea::placeholder,
-    .stChatInputContainer textarea::placeholder,
-    [data-testid="stChatInputContainer"] textarea::placeholder,
-    .stChatFloatingInputContainer textarea::placeholder,
-    [data-testid="stChatFloatingInputContainer"] textarea::placeholder,
-    [data-baseweb="textarea"] textarea::placeholder,
-    div[data-testid="stChatInput"] textarea::placeholder {
-        color: white !important;
-        opacity: 1 !important;
-        -webkit-text-fill-color: white !important;
-    }
-
-    /* Fixed chat input at bottom */
-    [data-testid="stBottom"] {
+        padding: calc(var(--base-font-size) * 0.75) !important;
         position: fixed !important;
         bottom: 0 !important;
-        left: var(--sidebar-width, 21rem) !important;
+        left: var(--sidebar-width) !important;
         right: 0 !important;
-        background-color: #343541 !important;
-        padding: 1rem !important;
         z-index: 1000 !important;
-        border-top: 1px solid #2f2f2f !important;
-    }
-
-    /* Ensure the floating input container is also fixed and centered */
-    .stChatFloatingInputContainer {
-        position: fixed !important;
-        bottom: 0 !important;
-        left: var(--sidebar-width, 21rem) !important;
-        right: 0 !important;
-        background-color: #343541 !important;
-        padding: 1rem !important;
-        z-index: 1000 !important;
-        border-top: 1px solid #2f2f2f !important;
     }
 
     /* When sidebar is collapsed */
@@ -332,29 +202,58 @@ st.markdown("""
     /* Center the chat input content */
     [data-testid="stBottom"] > div,
     .stChatFloatingInputContainer > div {
-        max-width: 67.2rem !important;
+        max-width: var(--content-max-width) !important;
         margin: 0 auto !important;
     }
 
-    /* Add padding at bottom of main content to prevent overlap with fixed input */
+    /* Add padding at bottom of main content to prevent overlap with fixed input (uses dynamic var) */
     .main .block-container {
-        padding-bottom: 150px !important;
-        max-height: calc(100vh - 150px) !important;
-        overflow-y: auto !important;
+        padding-bottom: var(--bottom-padding) !important;
     }
 
-    /* Make chat messages container scrollable */
+    /* Make chat messages container scrollable and responsive */
     [data-testid="stChatMessageContainer"] {
-        max-height: calc(100vh - 200px) !important;
+        max-height: calc(100vh - var(--bottom-padding) - 50px) !important;
         overflow-y: auto !important;
-        padding-bottom: 20px !important;
+        padding-bottom: calc(var(--base-font-size) * 1.25) !important;
     }
+
+    /* Code blocks scale */
+    code { font-size: calc(var(--base-font-size) * 0.9) !important; }
+    pre { font-size: calc(var(--base-font-size) * 0.9) !important; }
 
     /* Hide Streamlit branding */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
 </style>
+
+<script>
+(function(){
+  function setSizes(){
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    // sidebar: between 200px and 450px, ~20% of width
+    const sidebarPx = Math.min(Math.max(Math.round(vw * 0.20), 200), 450);
+    // content max width: between 540px and 1075px, up to 90% of viewport
+    const contentPx = Math.min(Math.max(Math.round(vw * 0.90), 540), 1075);
+    // bottom padding: between 120px and 220px, ~18% of viewport height
+    const bottomPx = Math.min(Math.max(Math.round(vh * 0.18), 120), 220);
+    // base font size: scale with viewport width, clamp 12-18px
+    const baseFont = Math.min(Math.max(Math.round(vw * 0.012 + 8), 12), 18);
+
+    document.documentElement.style.setProperty('--sidebar-width', sidebarPx + 'px');
+    document.documentElement.style.setProperty('--content-max-width', contentPx + 'px');
+    document.documentElement.style.setProperty('--bottom-padding', bottomPx + 'px');
+    document.documentElement.style.setProperty('--base-font-size', baseFont + 'px');
+    // also set a --vh unit for any future use
+    document.documentElement.style.setProperty('--vh', (vh * 0.01) + 'px');
+  }
+  // initial set and on-resize update
+  setSizes();
+  window.addEventListener('resize', setSizes);
+})();
+</script>
 """, unsafe_allow_html=True)
 
 # Initialize session state for authentication

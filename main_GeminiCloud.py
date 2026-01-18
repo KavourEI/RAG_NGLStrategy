@@ -22,6 +22,7 @@ st.markdown("""
         --content-max-width: 1075px; /* fallback */
         --bottom-padding: 150px; /* fallback */
         --base-font-size: 16px; /* fallback */
+        --is-mobile: 0;
     }
 
     @import url('https://fonts.googleapis.com/css2?family=Söhne:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
@@ -30,6 +31,7 @@ st.markdown("""
     .stApp {
         background-color: #343541 !important;
         font-size: var(--base-font-size) !important;
+        -webkit-tap-highlight-color: rgba(0,0,0,0);
     }
 
     /* Main content area */
@@ -41,6 +43,7 @@ st.markdown("""
         /* ensure content area leaves room for fixed bottom input */
         max-height: calc(100vh - var(--bottom-padding)) !important;
         overflow-y: auto !important;
+        margin-left: 0 auto !important;
     }
 
     /* Sidebar - ChatGPT style */
@@ -52,9 +55,14 @@ st.markdown("""
     }
 
     /* Include emoji-capable fonts in the stack so emoji use system color fonts */
-    [data-testid="stSidebar"] * {
+    [data-testid="stSidebar"] *,
+    html, body, [class*="css"], p, div, span, label {
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Segoe UI Emoji', 'Noto Color Emoji', 'Apple Color Emoji', sans-serif !important;
         color: #ececf1 !important;
+    }
+
+    /* Sidebar specific scaling */
+    [data-testid="stSidebar"] * {
         font-size: calc(var(--base-font-size) * 0.95) !important;
     }
 
@@ -64,7 +72,6 @@ st.markdown("""
         font-size: calc(var(--base-font-size) * 1.1) !important;
         font-weight: 600 !important;
         padding: 0.5rem 0 !important;
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Segoe UI Emoji', 'Noto Color Emoji', 'Apple Color Emoji', sans-serif !important;
     }
 
     /* Sidebar buttons */
@@ -73,11 +80,11 @@ st.markdown("""
         border: 1px solid #565869 !important;
         color: #ececf1 !important;
         border-radius: 6px !important;
-        padding: 0.5rem 1rem !important;
-        font-size: calc(var(--base-font-size) * 0.9) !important;
-        transition: all 0.2s !important;
+        padding: 0.65rem 1rem !important;
+        font-size: calc(var(--base-font-size) * 0.95) !important;
+        transition: all 0.15s !important;
         width: 100% !important;
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Segoe UI Emoji', 'Noto Color Emoji', 'Apple Color Emoji', sans-serif !important;
+        box-sizing: border-box !important;
     }
 
     [data-testid="stSidebar"] .stButton button:hover {
@@ -92,7 +99,6 @@ st.markdown("""
         color: #ececf1 !important;
         border-radius: 6px !important;
         padding: 0.75rem !important;
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Segoe UI Emoji', 'Noto Color Emoji', 'Apple Color Emoji', sans-serif !important;
         font-size: calc(var(--base-font-size) * 0.95) !important;
     }
 
@@ -101,7 +107,7 @@ st.markdown("""
         box-shadow: 0 0 0 1px #8e8ea0 !important;
     }
 
-    /* Radio buttons in sidebar */
+    /* Radio & other controls */
     [data-testid="stSidebar"] .stRadio > div {
         gap: 0.5rem !important;
     }
@@ -111,12 +117,8 @@ st.markdown("""
         padding: 0.5rem 1rem !important;
         border-radius: 6px !important;
         cursor: pointer !important;
-        transition: all 0.2s !important;
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Segoe UI Emoji', 'Noto Color Emoji', 'Apple Color Emoji', sans-serif !important;
-    }
-
-    [data-testid="stSidebar"] .stRadio label:hover {
-        background-color: #2a2b32 !important;
+        transition: all 0.15s !important;
+        font-size: calc(var(--base-font-size) * 0.95) !important;
     }
 
     /* Success/error messages in sidebar */
@@ -125,21 +127,12 @@ st.markdown("""
         background-color: #2a2b32 !important;
         border-radius: 6px !important;
         padding: 0.5rem !important;
-        font-size: 0.875rem !important;
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Segoe UI Emoji', 'Noto Color Emoji', 'Apple Color Emoji', sans-serif !important;
-    }
-
-    /* All text color and base font scaling */
-    html, body, [class*="css"], p, div, span, label {
-        color: #ececf1 !important;
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Segoe UI Emoji', 'Noto Color Emoji', 'Apple Color Emoji', sans-serif !important;
-        font-size: var(--base-font-size) !important;
+        font-size: 0.95rem !important;
     }
 
     /* Headers - scaled */
     h1, h2, h3 {
         color: #ececf1 !important;
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Segoe UI Emoji', 'Noto Color Emoji', 'Apple Color Emoji', sans-serif !important;
         font-weight: 600 !important;
     }
 
@@ -150,23 +143,22 @@ st.markdown("""
     /* Chat messages - ChatGPT style */
     .stChatMessage {
         background-color: transparent !important;
-        padding: calc(var(--base-font-size) * 1.5) 0 !important;
+        padding: calc(var(--base-font-size) * 1) 0 !important;
         border-radius: 0 !important;
     }
 
     /* Assistant messages */
     .stChatMessage[data-testid*="assistant"] {
         background-color: #444654 !important;
-        border-top: 1px solid rgba(255,255,255,0.1) !important;
-        border-bottom: 1px solid rgba(255,255,255,0.1) !important;
+        border-top: 1px solid rgba(255,255,255,0.08) !important;
+        border-bottom: 1px solid rgba(255,255,255,0.08) !important;
     }
 
     /* Chat message content */
     .stChatMessage div {
         color: #ececf1 !important;
         font-size: calc(var(--base-font-size) * 1) !important;
-        line-height: 1.75 !important;
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Segoe UI Emoji', 'Noto Color Emoji', 'Apple Color Emoji', sans-serif !important;
+        line-height: 1.6 !important;
     }
 
     /* Chat input container and fixed bottom area use dynamic sidebar width for left offset */
@@ -179,6 +171,7 @@ st.markdown("""
         padding: calc(var(--base-font-size) * 0.75) !important;
         z-index: 1000 !important;
         border-top: 1px solid #2f2f2f !important;
+        box-sizing: border-box !important;
     }
 
     .stChatFloatingInputContainer,
@@ -191,9 +184,10 @@ st.markdown("""
         left: var(--sidebar-width) !important;
         right: 0 !important;
         z-index: 1000 !important;
+        box-sizing: border-box !important;
     }
 
-    /* When sidebar is collapsed */
+    /* When sidebar is collapsed (desktop toggle) */
     [data-testid="stSidebar"][aria-expanded="false"] ~ .main [data-testid="stBottom"],
     [data-testid="stSidebar"][aria-expanded="false"] ~ .main .stChatFloatingInputContainer {
         left: 0 !important;
@@ -213,9 +207,29 @@ st.markdown("""
 
     /* Make chat messages container scrollable and responsive */
     [data-testid="stChatMessageContainer"] {
-        max-height: calc(100vh - var(--bottom-padding) - 50px) !important;
+        max-height: calc(100vh - var(--bottom-padding) - 30px) !important;
         overflow-y: auto !important;
         padding-bottom: calc(var(--base-font-size) * 1.25) !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+
+    /* Chat input full width behavior */
+    .stChatInput, .stChatInput textarea, .stChatInput input, [data-testid="stChatInput"] textarea {
+        font-size: calc(var(--base-font-size) * 1) !important;
+        background-color: #40414f !important;
+        border: 1px solid rgba(255,255,255,0.06) !important;
+        color: #ececf1 !important;
+        border-radius: 12px !important;
+        padding: 0.75rem 1rem !important;
+        box-sizing: border-box !important;
+        width: 100% !important;
+    }
+
+    /* Buttons - touch friendly */
+    .stButton button {
+        padding: 0.65rem 1rem !important;
+        border-radius: 8px !important;
+        font-size: calc(var(--base-font-size) * 0.98) !important;
     }
 
     /* Code blocks scale */
@@ -226,21 +240,52 @@ st.markdown("""
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
+
+    /* MOBILE SPECIFIC: fallback adjustments for narrow viewports */
+    @media (max-width: 760px) {
+        :root { --is-mobile: 1; }
+        /* Force sidebar off-canvas visually */
+        [data-testid="stSidebar"] { position: fixed !important; transform: translateX(-110%) !important; z-index: 1200 !important; }
+        /* Content should be full width */
+        .main .block-container { max-width: 100% !important; padding-left: 12px !important; padding-right: 12px !important; }
+        /* Make bottom input use full width and sit above the safe area */
+        [data-testid="stBottom"], .stChatFloatingInputContainer { left: 0 !important; right: 0 !important; padding-left: 12px !important; padding-right: 12px !important; }
+        /* Increase touch target sizes */
+        [data-testid="stSidebar"] .stButton button { padding: 0.9rem 1rem !important; font-size: calc(var(--base-font-size) * 1.05) !important; }
+        /* reduce message padding on small screens */
+        .stChatMessage { padding: calc(var(--base-font-size) * 0.6) 0 !important; }
+        [data-testid="stChatMessageContainer"] { max-height: calc(100vh - var(--bottom-padding) - 20px) !important; }
+    }
 </style>
 
 <script>
 (function(){
   function setSizes(){
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    // sidebar: between 200px and 450px, ~20% of width
-    const sidebarPx = Math.min(Math.max(Math.round(vw * 0.20), 200), 450);
+    const vw = Math.max(document.documentElement.clientWidth || 0, window.innerWidth || 0);
+    const vh = Math.max(document.documentElement.clientHeight || 0, window.innerHeight || 0);
+    const isMobile = vw <= 760 || Math.max(vh, vw) < 700;
+
+    // sidebar: between 200px and 450px, ~20% of width (desktop). Mobile -> 0
+    let sidebarPx = Math.min(Math.max(Math.round(vw * 0.20), 200), 450);
     // content max width: between 540px and 1075px, up to 90% of viewport
-    const contentPx = Math.min(Math.max(Math.round(vw * 0.90), 540), 1075);
-    // bottom padding: between 120px and 220px, ~18% of viewport height
-    const bottomPx = Math.min(Math.max(Math.round(vh * 0.18), 120), 220);
+    let contentPx = Math.min(Math.max(Math.round(vw * 0.90), 540), 1075);
+    // bottom padding: between 100px and 220px, ~18% of viewport height
+    let bottomPx = Math.min(Math.max(Math.round(vh * 0.18), 100), 220);
     // base font size: scale with viewport width, clamp 12-18px
-    const baseFont = Math.min(Math.max(Math.round(vw * 0.012 + 8), 12), 18);
+    let baseFont = Math.min(Math.max(Math.round(vw * 0.012 + 8), 12), 18);
+
+    if(isMobile){
+      sidebarPx = 0; // no persistent sidebar on mobile
+      // content should use almost full viewport width with small horizontal margins
+      contentPx = Math.max(vw - 24, 320);
+      // smaller bottom padding so input doesn't consume too much space
+      bottomPx = Math.min(Math.max(Math.round(vh * 0.14), 88), 160);
+      // slightly larger font on some phones for readability, but clamp
+      baseFont = Math.min(Math.max(Math.round(vw * 0.02 + 10), 13), 18);
+      document.documentElement.style.setProperty('--is-mobile', '1');
+    } else {
+      document.documentElement.style.setProperty('--is-mobile', '0');
+    }
 
     document.documentElement.style.setProperty('--sidebar-width', sidebarPx + 'px');
     document.documentElement.style.setProperty('--content-max-width', contentPx + 'px');
@@ -249,9 +294,18 @@ st.markdown("""
     // also set a --vh unit for any future use
     document.documentElement.style.setProperty('--vh', (vh * 0.01) + 'px');
   }
-  // initial set and on-resize update
+
+  // initial set and on-resize update (debounced)
+  let resizeTimer = null;
+  function updateSizesDebounced(){
+    if(resizeTimer) clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => { setSizes(); resizeTimer = null; }, 80);
+  }
+
   setSizes();
-  window.addEventListener('resize', setSizes);
+  window.addEventListener('resize', updateSizesDebounced);
+  // handle orientation change (mobile devices)
+  window.addEventListener('orientationchange', function(){ setTimeout(setSizes, 120); });
 })();
 </script>
 """, unsafe_allow_html=True)

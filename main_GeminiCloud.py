@@ -164,240 +164,142 @@ else:
         """)
 
     elif st.session_state.page == "Chat":
-        try:
-            from llama_cloud_services import LlamaCloudIndex
-            from llama_index.llms.gemini import Gemini
-            import re
+    try:
+        from llama_cloud_services import LlamaCloudIndex
+        from llama_index.llms.gemini import Gemini
+        import re
 
+        # ---- Minimal, generic cleaners ----
 
-            def fix_markdown_formatting(text):
-                """
-                Fix the specific issue where text is formatted with each character on a new line.
-                This happens when LLM tries to create subscript/superscript or code blocks.
-                """
-                if not text:
-                    return ""
-
-                # Pattern 1: Fix text where each character is on a new line
-                # Example: "6\n3\n9\n−\n6\n4\n9\n/\nm\nt"
-                lines = text.split('\n')
-
-                # If we have many single-character lines in sequence, join them
-                i = 0
-                result_lines = []
-
-                while i < len(lines):
-                    current_line = lines[i].strip()
-
-                    # Check if this line is a single character (or very short)
-                    # and if there's a sequence of similar lines
-                    if len(current_line) <= 2 and i < len(lines) - 1:
-                        # Look ahead to see if we have a sequence of short lines
-                        sequence = [current_line]
-                        j = i + 1
-
-                        while j < len(lines) and len(lines[j].strip()) <= 2:
-                            sequence.append(lines[j].strip())
-                            j += 1
-
-                        # If we found a sequence of at least 3 short lines, join them
-                        if len(sequence) >= 3:
-                            joined = ''.join(sequence)
-                            result_lines.append(joined)
-                            i = j
-                            continue
-
-                    result_lines.append(current_line)
-                    i += 1
-
-                text = '\n'.join(result_lines)
-
-                # Pattern 2: Fix specific patterns like "639−649/mtforsecond−halfJulydeliveryand"
-                # This happens when spaces are removed between words and numbers
-
-                # Add spaces between words and numbers
-                text = re.sub(r'([a-zA-Z])(\d)', r'\1 \2', text)
-                text = re.sub(r'(\d)([a-zA-Z])', r'\1 \2', text)
-
-                # Fix common price patterns
-                text = re.sub(r'(\d+)[−‑–—](\d+)/mt', r'\1-\2/mt', text)
-                text = re.sub(r'\$(\d+)/mt', r'$\1/mt', text)
-                text = re.sub(r'(\d+)-(\d+)/mt', r'\1-\2/mt', text)
-
-                # Fix common phrases
-                text = re.sub(r'second-half', 'second-half', text)
-                text = re.sub(r'first-half', 'first-half', text)
-
-                # Fix abbreviations
-                text = re.sub(r'\bC\s*F\s*R\b', 'CFR', text)
-                text = re.sub(r'\bF\s*O\s*B\b', 'FOB', text)
-                text = re.sub(r'\bm\s*t\b', 'mt', text)
-                text = re.sub(r'\bC\s*P\b', 'CP', text)
-
-                # Fix spaces after punctuation
-                text = re.sub(r'([.,!?;:])([A-Za-z])', r'\1 \2', text)
-
-                # Fix specific problematic patterns from your example
-                patterns = [
-                    (r'639−649/mtforsecond−halfJulydeliveryand', '639-649/mt for second-half July delivery and'),
-                    (r'85−95/mttotherespectiveJulyandAugustContractPrices',
-                     '85-95/mt to the respective July and August Contract Prices'),
-                    (r'second−halfof2025', 'second-half of 2025'),
-                    (r'\$80/mtto\$90/mt', '$80/mt to $90/mt'),
-                    (r'48−50/mt', '48-50/mt'),
-                    (r'\$45to\$50/mt', '$45 to $50/mt'),
-                    (r'\$57and\$58', '$57 and $58'),
-                ]
-
-                for pattern, replacement in patterns:
-                    text = text.replace(pattern, replacement)
-
-                # Final cleanup of multiple spaces
-                text = re.sub(r'\s+', ' ', text)
-                text = re.sub(r'\n\s*\n+', '\n\n', text)
-
-                return text.strip()
-
-
-            def clean_llm_response(text):
-                """Main cleaning function for LLM responses"""
-                if not text:
-                    return ""
-
-                # First pass: Fix markdown formatting issues
-                text = fix_markdown_formatting(text)
-
-                # Second pass: General cleanup
-                text = re.sub(r'([a-z])([A-Z])', r'\1 \2', text)  # Add space between lower and uppercase
-                text = re.sub(r'([A-Za-z])\.([A-Z])', r'\1. \2', text)  # Add space after period before capital
-
-                # Fix price ranges
-                text = re.sub(r'(\d)\s*-\s*(\d)', r'\1-\2', text)
-
-                # Remove any remaining single-character lines
-                lines = text.split('\n')
-                cleaned_lines = []
-                for line in lines:
-                    line = line.strip()
-                    if line and len(line) > 1:  # Skip single character lines
-                        cleaned_lines.append(line)
-
-                text = ' '.join(cleaned_lines)
-
-                return text
-
-
-            @st.cache_resource(show_spinner=False)
-            def get_index():
-                LLAMACLOUD_API_KEY = os.getenv('LLAMA_CLOUD_API_KEY')
-                LLAMACLOUD_ORG_ID = os.getenv('LLAMA_ORG_ID')
-
-                return LlamaCloudIndex(
-                    name="NGL_Strategy",
-                    project_name="Default",
-                    organization_id=LLAMACLOUD_ORG_ID,
-                    api_key=LLAMACLOUD_API_KEY
-                )
-
-
-            @st.cache_resource(show_spinner=False)
-            def get_llm():
-                return Gemini(
-                    model="models/gemini-2.5-flash",
-                    api_key=os.getenv("GOOGLE_API_KEY")
-                )
-
-
-            @st.cache_resource(show_spinner=False)
-            def get_query_engine():
-                index = get_index()
-                llm = get_llm()
-                return index.as_query_engine(llm=llm)
-
-        except ImportError as e:
-            st.error(f"Missing dependency: {e}")
-            st.stop()
-
-        st.title("Chat Assistant")
-
-        # Initialize messages
-        if "messages" not in st.session_state:
-            st.session_state.messages = []
-
-        # New helper: render messages with a name label instead of an emoji avatar
-        def format_for_markdown(text):
-            """Convert newlines to Markdown-friendly breaks and normalize paragraphs."""
+        def clean_llm_response(text: str) -> str:
+            """Light cleaning of LLM responses without breaking layout."""
             if not text:
                 return ""
-            # Normalize multiple blank lines to double-newline (paragraph)
-            text = re.sub(r'\n\s*\n+', '\n\n', text)
-            text = text.strip()
-            # Convert single newlines to Markdown line breaks (two spaces + newline)
-            text = text.replace('\n', '  \n')
-            return text
 
-        def render_message(message):
-            role = message.get("role", "")
-            content = message.get("content", "") or ""
-            # Apply cleaning for assistant text (LLM-originated). Also lightly normalize user text.
-            if role == "assistant":
-                cleaned = clean_llm_response(content)
-            else:
-                # Keep user input readable: collapse excessive whitespace but preserve intent
-                cleaned = re.sub(r'\s+', ' ', content).strip()
-            # Format for Markdown so Streamlit preserves line breaks/paragraphs
-            content_md = format_for_markdown(cleaned)
-            # Determine display name
-            if role == "user":
-                name = st.session_state.get("username") or "User"
-            elif role == "assistant":
-                name = "Bot"
-            else:
-                name = role.capitalize() or "User"
-            # Display the speaker name and the cleaned content
-            st.markdown(f"**{name}**")
-            st.markdown(content_md)
+            # Normalize weird unicode dashes and spaces
+            text = text.replace("−", "-").replace("‑", "-").replace("–", "-").replace("—", "-")
+            text = re.sub(r"[ \t]+", " ", text)        # collapse spaces within lines
+            text = re.sub(r"\n\s+\n", "\n\n", text)    # normalize blank-line paragraphs
 
-        # Display chat messages (use the helper, do not use st.chat_message to avoid emojis)
-        for message in st.session_state.messages:
-            render_message(message)
+            # Fix number-number ranges like "639 - 649 / mt"
+            text = re.sub(r"(\d)\s*-\s*(\d)", r"\1-\2", text)
 
-        # Chat input
-        prompt = st.chat_input("Ask a question about NGL Strategy...", key="chat_input")
+            # Fix missing space after punctuation
+            text = re.sub(r"([.,!?;:])([A-Za-z])", r"\1 \2", text)
 
-        if prompt:
-            # Add user message to history and render it using the helper
-            st.session_state.messages.append({"role": "user", "content": prompt})
-            render_message({"role": "user", "content": prompt})
+            return text.strip()
 
-            # Get AI response
-            with st.spinner("Thinking..."):
-                try:
-                    engine = get_query_engine()
-                    response = engine.query(prompt)
+        def format_for_markdown(text: str) -> str:
+            """Preserve paragraphs and simple line breaks for Streamlit markdown."""
+            if not text:
+                return ""
 
-                    if hasattr(response, 'response'):
-                        response_text = response.response
-                    elif hasattr(response, 'text'):
-                        response_text = response.text
-                    else:
-                        response_text = str(response)
+            # Keep double newlines as paragraphs, single newlines as soft breaks
+            paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+            for i, p in enumerate(paragraphs):
+                # inside a paragraph, treat single \n as markdown line break
+                paragraphs[i] = p.replace("\n", "  \n")
+            return "\n\n".join(paragraphs)
 
-                    # Clean the response
-                    cleaned_response = clean_llm_response(response_text)
+        # ---- LlamaIndex wiring ----
 
-                    # Render assistant message using the helper (shows "Bot" as speaker)
-                    render_message({"role": "assistant", "content": cleaned_response})
-                    st.session_state.messages.append({"role": "assistant", "content": cleaned_response})
+        @st.cache_resource(show_spinner=False)
+        def get_index():
+            LLAMACLOUD_API_KEY = os.getenv("LLAMA_CLOUD_API_KEY")
+            LLAMACLOUD_ORG_ID = os.getenv("LLAMA_ORG_ID")
+            return LlamaCloudIndex(
+                name="NGL_Strategy",
+                project_name="Default",
+                organization_id=LLAMACLOUD_ORG_ID,
+                api_key=LLAMACLOUD_API_KEY,
+            )
 
-                except Exception as e:
-                    error_msg = f"Error: {str(e)}"
-                    st.error(error_msg)
-                    st.session_state.messages.append({"role": "assistant", "content": error_msg})
-                    render_message({"role": "assistant", "content": error_msg})
+        @st.cache_resource(show_spinner=False)
+        def get_llm():
+            return Gemini(
+                model="models/gemini-2.5-flash",
+                api_key=os.getenv("GOOGLE_API_KEY"),
+            )
 
-        # Clear chat button
-        if st.session_state.messages:
-            if st.button("Clear Chat History", type="secondary"):
-                st.session_state.messages = []
-                st.rerun()
+        @st.cache_resource(show_spinner=False)
+        def get_query_engine():
+            index = get_index()
+            llm = get_llm()
+            return index.as_query_engine(llm=llm)
+
+    except ImportError as e:
+        st.error(f"Missing dependency: {e}")
+        st.stop()
+
+    st.title("Chat Assistant")
+
+    # Initialize messages
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+
+    # ---- Rendering helpers ----
+
+    def render_message(message: dict):
+        role = message.get("role", "")
+        content = message.get("content", "") or ""
+
+        if role == "assistant":
+            cleaned = clean_llm_response(content)
+        else:
+            # keep user input readable but not mangled
+            cleaned = re.sub(r"\s+", " ", content).strip()
+
+        content_md = format_for_markdown(cleaned)
+
+        if role == "user":
+            name = st.session_state.get("username") or "User"
+        elif role == "assistant":
+            name = "Bot"
+        else:
+            name = role.capitalize() or "User"
+
+        st.markdown(f"**{name}**")
+        st.markdown(content_md)
+
+    # Display history
+    for message in st.session_state.messages:
+        render_message(message)
+
+    # Chat input
+    prompt = st.chat_input("Ask a question about NGL Strategy...", key="chat_input")
+
+    if prompt:
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        render_message({"role": "user", "content": prompt})
+
+        with st.spinner("Thinking..."):
+            try:
+                engine = get_query_engine()
+                response = engine.query(prompt)
+
+                if hasattr(response, "response"):
+                    response_text = response.response
+                elif hasattr(response, "text"):
+                    response_text = response.text
+                else:
+                    response_text = str(response)
+
+                cleaned_response = clean_llm_response(response_text)
+
+                msg = {"role": "assistant", "content": cleaned_response}
+                render_message(msg)
+                st.session_state.messages.append(msg)
+
+            except Exception as e:
+                error_msg = f"Error: {str(e)}"
+                st.error(error_msg)
+                msg = {"role": "assistant", "content": error_msg}
+                st.session_state.messages.append(msg)
+                render_message(msg)
+
+    # Clear chat button
+    if st.session_state.messages:
+        if st.button("Clear Chat History", type="secondary"):
+            st.session_state.messages = []
+            st.rerun()
+

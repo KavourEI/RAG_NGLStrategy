@@ -492,9 +492,8 @@ else:
         st.markdown("""
         ### Welcome to your AI-powered NGL Strategy assistant
 
-        This assistant uses advanced AI to help you understand and analyze NGL (Natural Gas Liquids) 
-        strategy documents. Ask questions and get instant, accurate answers based on your organization's 
-        knowledge base.
+        This assistant uses advanced AI to help you quickly find information that is stored in RIM Documents. 
+        Ask questions and get instant, accurate answers based on the aforementioned knowledge base.
 
         ---
 

@@ -466,6 +466,61 @@ st.markdown("""
   window.addEventListener('resize', function(){ updateSizesDebounced(); handleMobileControlsVisibility(); });
 })();
 </script>
+
+<!-- CHANGED: add a small JS mapper so you can change which emoji appear for avatars -->
+<script>
+(function(){
+  /* Mapping: change the emoji here.
+     Key = the material-icon / material-symbols ligature text that Streamlit renders (e.g., "face", "smart_toy")
+     Value = the emoji you want displayed instead.
+     Example: mapping['face'] = '😄'
+  */
+  const mapping = {
+    "face": "🙂",
+    "person": "👤",
+    "smart_toy": "🤖",
+    "smart_tow": "🤖" // fallback for typo/variant
+    // Add or edit entries here to change avatars
+  };
+
+  function applyMapping(root){
+    if(!root) return;
+    const selectors = 'span.material-icons, span.material-symbols-outlined, span.material-icons-outlined';
+    root.querySelectorAll(selectors).forEach(span => {
+      const name = (span.textContent || "").trim();
+      if(name && mapping[name]){
+        // Replace text with emoji and make sure font renders emoji (inherit site font)
+        span.textContent = mapping[name];
+        span.style.fontFamily = 'inherit';
+        span.style.fontSize = '1.05em';
+        span.style.lineHeight = '1';
+        span.style.display = 'inline-block';
+        span.style.verticalAlign = 'middle';
+      }
+    });
+  }
+
+  // initial pass
+  applyMapping(document);
+
+  // Observe changes so new chat messages get updated
+  const observer = new MutationObserver((mutations) => {
+    for(const m of mutations){
+      for(const node of m.addedNodes || []){
+        if(node.nodeType === 1){
+          applyMapping(node);
+        }
+      }
+    }
+  });
+
+  observer.observe(document.body, { childList: true, subtree: true });
+
+  // Optional: re-run mapping on window load and resize (defensive)
+  window.addEventListener('load', () => applyMapping(document));
+  window.addEventListener('resize', () => applyMapping(document));
+})();
+</script>
 """, unsafe_allow_html=True)
 
 # Initialize session state for authentication

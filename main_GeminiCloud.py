@@ -136,60 +136,84 @@ This assistant is powered by:
 
         # ---------- Cleaning helpers ----------
 
+        def _collapse_single_char_lines(raw: str) -> str:
+            """
+            Detect sequences of single-character lines and join them back into words/sentences.
+            Handles patterns like:
+                6\n3\n9\n−\n6\n4\n9\n/\nm\nt\n,\nw\ni\t...
+            """
+            if not raw:
+                return ""
+
+            lines = raw.split("\n")
+            out = []
+            buf = []
+
+            def flush_buf():
+                nonlocal out, buf
+                if not buf:
+                    return
+                # Join characters without spaces, then lightly normalise spaces around punctuation
+                s = "".join(buf)
+                s = re.sub(r"\s*([,./])\s*", r"\1", s)   # no spaces around , . /
+                s = re.sub(r"\s*([-])\s*", r"\1", s)     # keep ranges like 639-649
+                out.append(s)
+                buf = []
+
+            for line in lines:
+                t = line.strip()
+                if len(t) == 1:          # candidate for stacked characters
+                    buf.append(t)
+                else:
+                    flush_buf()
+                    out.append(t)
+
+            flush_buf()
+            return "\n".join(out)
+
         def clean_llm_response(text: str) -> str:
-            """Light cleaning of LLM responses without breaking layout."""
+            """Main cleaning function for LLM responses."""
             if not text:
                 return ""
 
-            # Normalize dashes
+            # 1) First, collapse stacked single-character lines
+            text = _collapse_single_char_lines(text)
+
+            # 2) Normalise unicode dashes
             text = (
                 text.replace("−", "-")
-                .replace("‑", "-")
-                .replace("–", "-")
-                .replace("—", "-")
+                    .replace("‑", "-")
+                    .replace("–", "-")
+                    .replace("—", "-")
             )
 
-            # Collapse extra spaces within lines
+            # 3) Collapse multiple spaces, keep newlines
             text = re.sub(r"[ \t]+", " ", text)
 
-            # Normalize multiple blank lines to a single blank line
+            # 4) Normalise multiple blank lines to one
             text = re.sub(r"\n\s*\n+", "\n\n", text)
 
-            # Fix numeric ranges like "639 - 649"
+            # 5) Fix numeric ranges "639 - 649"
             text = re.sub(r"(\d)\s*-\s*(\d)", r"\1-\2", text)
 
-            # Ensure space before unit markers like "/mt"
-            text = re.sub(r"(\d)/(mt)\b", r"\1 / \2", text)
-            text = re.sub(r"\b(mtto)\b", "mt to", text)
+            # 6) Ensure space before unit markers like "/mt"
+            text = re.sub(r"(\d)/(mt)\b", r"\1/mt", text)       # first tighten
+            text = re.sub(r"(\d/mt)([A-Za-z])", r"\1 \2", text) # then split from next word
+            text = re.sub(r"\bmtto\b", "mt to", text)
 
-            # Sometimes the source has "mtto$90" etc.
-            text = re.sub(r"\bmt\s*to\s*\$(\d+)", r"mt to $\1", text)
-
-            # Split stuck words + numbers, e.g. "85-95/mtrelative"
-            text = re.sub(r"(\d/mt)([A-Za-z])", r"\1 \2", text)
-
-            # Fix a few domain‑specific glitches you showed in screenshots
-            text = text.replace("withpremiumso", "with premiums of ")
-
-            # Space after punctuation when missing
+            # 7) Space after punctuation when missing
             text = re.sub(r"([.,!?;:])([A-Za-z])", r"\1 \2", text)
-
-            # Escape markdown underscores that might appear in prices or tickers
-            text = text.replace("_", r"\_")
 
             return text.strip()
 
-
         def format_for_markdown(text: str) -> str:
-            """Preserve paragraphs and soft line breaks for Streamlit markdown."""
+            """Preserve paragraphs and simple line breaks for Streamlit markdown."""
             if not text:
                 return ""
 
-            # Split paragraphs on blank lines
             paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
             for i, p in enumerate(paragraphs):
-                # Inside a paragraph, treat single \n as markdown line break
-                paragraphs[i] = p.replace("\n", "  \n")
+                paragraphs[i] = p.replace("\n", "  \n")  # soft breaks inside paragraph
             return "\n\n".join(paragraphs)
 
         # ---------- LlamaIndex resources ----------

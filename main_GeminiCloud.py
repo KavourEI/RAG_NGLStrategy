@@ -149,7 +149,7 @@ This assistant is powered by:
                 .replace("—", "-")
             )
 
-            # Collapse extra spaces in lines
+            # Collapse extra spaces within lines
             text = re.sub(r"[ \t]+", " ", text)
 
             # Normalize multiple blank lines to a single blank line
@@ -158,10 +158,27 @@ This assistant is powered by:
             # Fix numeric ranges like "639 - 649"
             text = re.sub(r"(\d)\s*-\s*(\d)", r"\1-\2", text)
 
+            # Ensure space before unit markers like "/mt"
+            text = re.sub(r"(\d)/(mt)\b", r"\1 / \2", text)
+            text = re.sub(r"\b(mtto)\b", "mt to", text)
+
+            # Sometimes the source has "mtto$90" etc.
+            text = re.sub(r"\bmt\s*to\s*\$(\d+)", r"mt to $\1", text)
+
+            # Split stuck words + numbers, e.g. "85-95/mtrelative"
+            text = re.sub(r"(\d/mt)([A-Za-z])", r"\1 \2", text)
+
+            # Fix a few domain‑specific glitches you showed in screenshots
+            text = text.replace("withpremiumso", "with premiums of ")
+
             # Space after punctuation when missing
             text = re.sub(r"([.,!?;:])([A-Za-z])", r"\1 \2", text)
 
+            # Escape markdown underscores that might appear in prices or tickers
+            text = text.replace("_", r"\_")
+
             return text.strip()
+
 
         def format_for_markdown(text: str) -> str:
             """Preserve paragraphs and soft line breaks for Streamlit markdown."""

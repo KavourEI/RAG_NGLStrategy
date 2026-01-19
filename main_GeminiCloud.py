@@ -204,6 +204,9 @@ This assistant is powered by:
             # 7) Space after punctuation when missing
             text = re.sub(r"([.,!?;:])([A-Za-z])", r"\1 \2", text)
 
+            # 8) Escape dollar signs to prevent LaTeX rendering
+            text = text.replace("$", r"\$")
+
             return text.strip()
 
         def format_for_markdown(text: str) -> str:

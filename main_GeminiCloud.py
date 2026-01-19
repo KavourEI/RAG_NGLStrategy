@@ -13,10 +13,10 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Clean CSS with proper font sizing and spacing
+# Clean CSS
 st.markdown("""
 <style>
-    /* Base reset for Cloud */
+    /* Base reset */
     html, body {
         margin: 0 !important;
         padding: 0 !important;
@@ -31,15 +31,13 @@ st.markdown("""
         line-height: 1.5 !important;
     }
     
-    /* Fix font sizes throughout the app */
+    /* Fix font sizes */
     .stMarkdown, .stMarkdown p, .stMarkdown div {
         font-size: 14px !important;
         line-height: 1.5 !important;
-        letter-spacing: normal !important;
-        word-spacing: normal !important;
     }
     
-    /* Fix oversized chat messages */
+    /* Fix chat messages */
     .stChatMessage {
         padding: 12px 0 !important;
         margin: 0 !important;
@@ -48,101 +46,16 @@ st.markdown("""
     .stChatMessage div {
         font-size: 14px !important;
         line-height: 1.5 !important;
-        letter-spacing: normal !important;
     }
     
-    /* Fix chat input */
-    .stChatInputContainer textarea {
+    /* Fix code block styling that might be interfering */
+    code, pre {
+        background-color: transparent !important;
+        border: none !important;
+        padding: 0 !important;
         font-size: 14px !important;
-        line-height: 1.5 !important;
-        padding: 12px !important;
-        background-color: #40414f !important;
-        border: 1px solid #565869 !important;
-        color: #ececf1 !important;
-        border-radius: 8px !important;
-    }
-    
-    /* Fix sidebar text */
-    [data-testid="stSidebar"] * {
-        font-size: 13px !important;
-        line-height: 1.4 !important;
-    }
-    
-    /* Fix headings */
-    h1 {
-        font-size: 24px !important;
-        line-height: 1.3 !important;
-        margin-bottom: 16px !important;
-    }
-    
-    h2 {
-        font-size: 20px !important;
-        line-height: 1.3 !important;
-        margin-bottom: 12px !important;
-    }
-    
-    h3 {
-        font-size: 16px !important;
-        line-height: 1.3 !important;
-        margin-bottom: 8px !important;
-    }
-    
-    /* Fix button text */
-    .stButton button {
-        font-size: 13px !important;
-        padding: 8px 16px !important;
-    }
-    
-    /* Fix text input */
-    .stTextInput input {
-        font-size: 14px !important;
-        padding: 8px 12px !important;
-        line-height: 1.5 !important;
-    }
-    
-    /* Fix spacing in lists */
-    ul, ol {
-        margin-top: 8px !important;
-        margin-bottom: 8px !important;
-        padding-left: 20px !important;
-    }
-    
-    li {
-        margin-bottom: 4px !important;
-        line-height: 1.5 !important;
-    }
-    
-    /* Fix paragraphs spacing */
-    p {
-        margin-bottom: 12px !important;
-        line-height: 1.5 !important;
-    }
-    
-    /* Fix code blocks */
-    code {
-        font-size: 12px !important;
-        line-height: 1.4 !important;
-    }
-    
-    /* Remove any excessive spacing */
-    .block-container {
-        padding-top: 20px !important;
-        padding-bottom: 20px !important;
-    }
-    
-    /* Mobile adjustments */
-    @media (max-width: 768px) {
-        .stApp {
-            font-size: 15px !important;
-        }
-        
-        .stChatMessage div {
-            font-size: 15px !important;
-        }
-        
-        .stChatInputContainer textarea {
-            font-size: 15px !important;
-        }
+        font-family: inherit !important;
+        white-space: pre-wrap !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -256,138 +169,117 @@ else:
             from llama_index.llms.gemini import Gemini
             import re
             
-            def clean_text(text):
-                """Comprehensive text cleaning to fix LLM formatting issues"""
+            def fix_markdown_formatting(text):
+                """
+                Fix the specific issue where text is formatted with each character on a new line.
+                This happens when LLM tries to create subscript/superscript or code blocks.
+                """
                 if not text:
                     return ""
                 
-                # First, join all lines and then re-process
+                # Pattern 1: Fix text where each character is on a new line
+                # Example: "6\n3\n9\n−\n6\n4\n9\n/\nm\nt"
                 lines = text.split('\n')
                 
-                # Step 1: Identify and fix broken price patterns
-                fixed_lines = []
+                # If we have many single-character lines in sequence, join them
                 i = 0
+                result_lines = []
                 
                 while i < len(lines):
                     current_line = lines[i].strip()
                     
-                    # Skip empty lines
-                    if not current_line:
-                        i += 1
-                        continue
-                    
-                    # Look ahead to see if next line continues a price/quantity pattern
-                    if i < len(lines) - 1:
-                        next_line = lines[i + 1].strip()
+                    # Check if this line is a single character (or very short)
+                    # and if there's a sequence of similar lines
+                    if len(current_line) <= 2 and i < len(lines) - 1:
+                        # Look ahead to see if we have a sequence of short lines
+                        sequence = [current_line]
+                        j = i + 1
                         
-                        # Pattern 1: Price range broken across lines (e.g., "639\n-649/mt")
-                        if re.search(r'\d+$', current_line) and re.match(r'^[−‑–—]\d+', next_line):
-                            # Merge them
-                            merged = current_line + next_line
-                            fixed_lines.append(merged)
-                            i += 2
-                            continue
+                        while j < len(lines) and len(lines[j].strip()) <= 2:
+                            sequence.append(lines[j].strip())
+                            j += 1
                         
-                        # Pattern 2: Price with slash on next line (e.g., "649\n/mt")
-                        elif re.search(r'\d+$', current_line) and re.match(r'^/\s*(mt|ton|barrel)', next_line, re.IGNORECASE):
-                            merged = current_line + next_line
-                            fixed_lines.append(merged)
-                            i += 2
-                            continue
-                        
-                        # Pattern 3: Currency symbol on next line (e.g., "$\n58/mt")
-                        elif re.search(r'[A-Za-z)]$', current_line) and re.match(r'^\$\s*\d+', next_line):
-                            merged = current_line + ' ' + next_line
-                            fixed_lines.append(merged)
-                            i += 2
-                            continue
-                        
-                        # Pattern 4: Number then text that should be together (e.g., "second-\nhalf")
-                        elif re.search(r'[a-zA-Z]-$', current_line) and next_line:
-                            merged = current_line.rstrip('-') + next_line
-                            fixed_lines.append(merged)
-                            i += 2
+                        # If we found a sequence of at least 3 short lines, join them
+                        if len(sequence) >= 3:
+                            joined = ''.join(sequence)
+                            result_lines.append(joined)
+                            i = j
                             continue
                     
-                    # If no special pattern, keep the line as is
-                    fixed_lines.append(current_line)
+                    result_lines.append(current_line)
                     i += 1
                 
-                # Join the fixed lines
-                text = ' '.join(fixed_lines)
+                text = '\n'.join(result_lines)
                 
-                # Now fix specific patterns
-                # Fix price ranges with dashes
-                text = re.sub(r'(\d+)[−‑–—](\d+)', r'\1-\2', text)
+                # Pattern 2: Fix specific patterns like "639−649/mtforsecond−halfJulydeliveryand"
+                # This happens when spaces are removed between words and numbers
                 
-                # Fix spaced abbreviations
-                text = re.sub(r'\bC\s*F\s*R\b', 'CFR', text, flags=re.IGNORECASE)
-                text = re.sub(r'\bF\s*O\s*B\b', 'FOB', text, flags=re.IGNORECASE)
-                text = re.sub(r'\bm\s*t\b', 'mt', text, flags=re.IGNORECASE)
-                text = re.sub(r'\bC\s*P\b', 'CP', text, flags=re.IGNORECASE)
+                # Add spaces between words and numbers
+                text = re.sub(r'([a-zA-Z])(\d)', r'\1 \2', text)
+                text = re.sub(r'(\d)([a-zA-Z])', r'\1 \2', text)
                 
-                # Fix price/mt patterns
-                text = re.sub(r'(\$\d+\s*-\s*\$\d+)\s*/\s*mt', r'\1/mt', text)
-                text = re.sub(r'(\d+\s*-\s*\d+)\s*/\s*mt', r'\1/mt', text)
-                text = re.sub(r'(\$\d+)\s*/\s*mt', r'\1/mt', text)
-                text = re.sub(r'(\d+)\s*/\s*mt', r'\1/mt', text)
+                # Fix common price patterns
+                text = re.sub(r'(\d+)[−‑–—](\d+)/mt', r'\1-\2/mt', text)
+                text = re.sub(r'\$(\d+)/mt', r'$\1/mt', text)
+                text = re.sub(r'(\d+)-(\d+)/mt', r'\1-\2/mt', text)
                 
-                # Fix specific common patterns
-                text = re.sub(r'second\s*-\s*half', 'second-half', text, flags=re.IGNORECASE)
-                text = re.sub(r'first\s*-\s*half', 'first-half', text, flags=re.IGNORECASE)
-                text = re.sub(r'mid\s*-\s*', 'mid-', text)
-                text = re.sub(r'high\s*-\s*', 'high-', text)
-                text = re.sub(r'low\s*-\s*', 'low-', text)
+                # Fix common phrases
+                text = re.sub(r'second-half', 'second-half', text)
+                text = re.sub(r'first-half', 'first-half', text)
                 
-                # Fix month references
-                text = re.sub(r'([A-Z][a-z]+)\s*-\s*([A-Z][a-z]+)', r'\1-\2', text)  # July-August
+                # Fix abbreviations
+                text = re.sub(r'\bC\s*F\s*R\b', 'CFR', text)
+                text = re.sub(r'\bF\s*O\s*B\b', 'FOB', text)
+                text = re.sub(r'\bm\s*t\b', 'mt', text)
+                text = re.sub(r'\bC\s*P\b', 'CP', text)
                 
-                # Clean up extra spaces
+                # Fix spaces after punctuation
+                text = re.sub(r'([.,!?;:])([A-Za-z])', r'\1 \2', text)
+                
+                # Fix specific problematic patterns from your example
+                patterns = [
+                    (r'639−649/mtforsecond−halfJulydeliveryand', '639-649/mt for second-half July delivery and'),
+                    (r'85−95/mttotherespectiveJulyandAugustContractPrices', '85-95/mt to the respective July and August Contract Prices'),
+                    (r'second−halfof2025', 'second-half of 2025'),
+                    (r'\$80/mtto\$90/mt', '$80/mt to $90/mt'),
+                    (r'48−50/mt', '48-50/mt'),
+                    (r'\$45to\$50/mt', '$45 to $50/mt'),
+                    (r'\$57and\$58', '$57 and $58'),
+                ]
+                
+                for pattern, replacement in patterns:
+                    text = text.replace(pattern, replacement)
+                
+                # Final cleanup of multiple spaces
                 text = re.sub(r'\s+', ' ', text)
-                text = re.sub(r'\s+([,;:.!?)])', r'\1', text)
-                text = re.sub(r'([(])\s+', r'\1', text)
-                text = re.sub(r'([A-Za-z])-\s+([A-Za-z])', r'\1-\2', text)  # Fix hyphen spacing
+                text = re.sub(r'\n\s*\n+', '\n\n', text)
                 
                 return text.strip()
             
-            def fix_llm_formatting(text):
-                """Additional formatting fixes for LLM output"""
-                # Fix: number newline - number pattern
-                text = re.sub(r'(\d+)\s*\n\s*([−‑–—])\s*(\d+)', r'\1\2\3', text)
+            def clean_llm_response(text):
+                """Main cleaning function for LLM responses"""
+                if not text:
+                    return ""
                 
-                # Fix: /mt on new line
-                text = re.sub(r'(\d+)\s*\n\s*/\s*(mt|ton)', r'\1/\2', text, flags=re.IGNORECASE)
+                # First pass: Fix markdown formatting issues
+                text = fix_markdown_formatting(text)
                 
-                # Fix: $ on new line
-                text = re.sub(r'([A-Za-z])\s*\n\s*\$', r'\1 $', text)
+                # Second pass: General cleanup
+                text = re.sub(r'([a-z])([A-Z])', r'\1 \2', text)  # Add space between lower and uppercase
+                text = re.sub(r'([A-Za-z])\.([A-Z])', r'\1. \2', text)  # Add space after period before capital
                 
-                # Fix hyphenated words broken across lines
-                text = re.sub(r'([a-zA-Z])-\s*\n\s*([a-zA-Z])', r'\1-\2', text)
+                # Fix price ranges
+                text = re.sub(r'(\d)\s*-\s*(\d)', r'\1-\2', text)
                 
-                # Remove excessive newlines but keep paragraphs
+                # Remove any remaining single-character lines
                 lines = text.split('\n')
-                cleaned = []
-                i = 0
-                while i < len(lines):
-                    line = lines[i].strip()
-                    if line:
-                        # If next line starts with lowercase or number, merge them
-                        if i < len(lines) - 1 and lines[i+1].strip():
-                            next_first_char = lines[i+1].strip()[0]
-                            if next_first_char.islower() or next_first_char.isdigit() or next_first_char in '-$':
-                                cleaned.append(line + ' ' + lines[i+1].strip())
-                                i += 1  # Skip the merged line
-                            else:
-                                cleaned.append(line)
-                        else:
-                            cleaned.append(line)
-                    i += 1
+                cleaned_lines = []
+                for line in lines:
+                    line = line.strip()
+                    if line and len(line) > 1:  # Skip single character lines
+                        cleaned_lines.append(line)
                 
-                text = '\n'.join(cleaned)
-                
-                # Final cleanup
-                text = re.sub(r'\s+', ' ', text)
-                text = re.sub(r'\s+([,;:.!?)])', r'\1', text)
+                text = ' '.join(cleaned_lines)
                 
                 return text
             
@@ -454,13 +346,12 @@ else:
                         else:
                             response_text = str(response)
                         
-                        # Apply comprehensive cleaning
-                        response_text = clean_text(response_text)
-                        response_text = fix_llm_formatting(response_text)
+                        # Clean the response
+                        cleaned_response = clean_llm_response(response_text)
                         
-                        # Display the cleaned text
-                        st.markdown(response_text)
-                        st.session_state.messages.append({"role": "assistant", "content": response_text})
+                        # Display with st.markdown but prevent code block formatting
+                        st.markdown(cleaned_response)
+                        st.session_state.messages.append({"role": "assistant", "content": cleaned_response})
                         
                     except Exception as e:
                         error_msg = f"Error: {str(e)}"

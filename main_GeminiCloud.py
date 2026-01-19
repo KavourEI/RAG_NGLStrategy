@@ -325,21 +325,38 @@ else:
             st.session_state.messages = []
 
         # New helper: render messages with a name label instead of an emoji avatar
+        def format_for_markdown(text):
+            """Convert newlines to Markdown-friendly breaks and normalize paragraphs."""
+            if not text:
+                return ""
+            # Normalize multiple blank lines to double-newline (paragraph)
+            text = re.sub(r'\n\s*\n+', '\n\n', text)
+            text = text.strip()
+            # Convert single newlines to Markdown line breaks (two spaces + newline)
+            text = text.replace('\n', '  \n')
+            return text
+
         def render_message(message):
             role = message.get("role", "")
             content = message.get("content", "") or ""
+            # Apply cleaning for assistant text (LLM-originated). Also lightly normalize user text.
+            if role == "assistant":
+                cleaned = clean_llm_response(content)
+            else:
+                # Keep user input readable: collapse excessive whitespace but preserve intent
+                cleaned = re.sub(r'\s+', ' ', content).strip()
+            # Format for Markdown so Streamlit preserves line breaks/paragraphs
+            content_md = format_for_markdown(cleaned)
             # Determine display name
             if role == "user":
                 name = st.session_state.get("username") or "User"
             elif role == "assistant":
                 name = "Bot"
             else:
-                # fallback for any other role
                 name = role.capitalize() or "User"
-            # Display the speaker name and the content. Minimal formatting to look like chat.
+            # Display the speaker name and the cleaned content
             st.markdown(f"**{name}**")
-            # Keep the original content formatting (avoid code block auto-formatting)
-            st.markdown(content)
+            st.markdown(content_md)
 
         # Display chat messages (use the helper, do not use st.chat_message to avoid emojis)
         for message in st.session_state.messages:

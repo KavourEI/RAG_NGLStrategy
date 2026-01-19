@@ -16,6 +16,10 @@ st.set_page_config(
 # Custom CSS for ChatGPT-like appearance
 st.markdown("""
 <style>
+    /* Load Material Icons (icons used by Streamlit chat avatars) and Material Symbols */
+    @import url('https://fonts.googleapis.com/icon?family=Material+Icons');
+    @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined');
+
     :root{
         /* dynamic vars set from JS on load/resize */
         --sidebar-width: 336px; /* fallback */
@@ -27,11 +31,33 @@ st.markdown("""
 
     @import url('https://fonts.googleapis.com/css2?family=Söhne:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
 
+    /* Ensure Material Icon classes use the proper Material font (override global font-family) */
+    .material-icons,
+    .material-icons-outlined,
+    .material-icons-round,
+    .material-symbols-outlined {
+        font-family: 'Material Icons' !important;
+        font-weight: normal !important;
+        font-style: normal !important;
+        font-size: inherit !important;
+        line-height: 1 !important;
+        text-transform: none !important;
+        letter-spacing: normal !important;
+        word-wrap: normal !important;
+        white-space: nowrap !important;
+        direction: ltr !important;
+        -webkit-font-feature-settings: 'liga' !important;
+        -webkit-font-smoothing: antialiased !important;
+        font-feature-settings: 'liga' !important;
+        /* ensure icons render as ligatures, not plain text */
+    }
+
     /* Main background - ChatGPT dark theme */
     .stApp {
         background-color: #343541 !important;
         font-size: var(--base-font-size) !important;
         -webkit-tap-highlight-color: rgba(0,0,0,0);
+        overflow-x: hidden; /* prevent accidental horizontal overflow */
     }
 
     /* Main content area */
@@ -194,15 +220,15 @@ st.markdown("""
     }
 
     /* Center the chat input content */
+    /* NOTE: width is clamped to viewport minus sidebar to prevent overflow on small screens */
     [data-testid="stBottom"] > div,
     .stChatFloatingInputContainer > div {
+        box-sizing: border-box !important;
         max-width: var(--content-max-width) !important;
         margin: 0 auto !important;
-    }
-
-    /* Add padding at bottom of main content to prevent overlap with fixed input (uses dynamic var) */
-    .main .block-container {
-        padding-bottom: var(--bottom-padding) !important;
+        width: min(var(--content-max-width), calc(100vw - var(--sidebar-width) - 32px)) !important;
+        padding-left: 12px !important;
+        padding-right: 12px !important;
     }
 
     /* Make chat messages container scrollable and responsive */
@@ -223,6 +249,8 @@ st.markdown("""
         padding: 0.75rem 1rem !important;
         box-sizing: border-box !important;
         width: 100% !important;
+        max-width: 100% !important;
+        overflow-wrap: break-word !important;
     }
 
     /* Buttons - touch friendly */
@@ -306,11 +334,20 @@ st.markdown("""
         .main .block-container { max-width: 100% !important; padding-left: 12px !important; padding-right: 12px !important; }
         /* Make bottom input use full width and sit above the safe area */
         [data-testid="stBottom"], .stChatFloatingInputContainer { left: 0 !important; right: 0 !important; padding-left: 12px !important; padding-right: 12px !important; }
-        /* Increase touch target sizes */
+        /* increase touch target sizes */
         [data-testid="stSidebar"] .stButton button { padding: 0.9rem 1rem !important; font-size: calc(var(--base-font-size) * 1.05) !important; }
         /* reduce message padding on small screens */
         .stChatMessage { padding: calc(var(--base-font-size) * 0.6) 0 !important; }
         [data-testid="stChatMessageContainer"] { max-height: calc(100vh - var(--bottom-padding) - 20px) !important; }
+
+        /* Mobile override for chat input wrapper to prevent overflow */
+        [data-testid="stBottom"] > div,
+        .stChatFloatingInputContainer > div {
+            width: calc(100vw - 24px) !important;
+            max-width: 100% !important;
+            padding-left: 6px !important;
+            padding-right: 6px !important;
+        }
     }
 </style>
 

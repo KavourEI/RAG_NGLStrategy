@@ -623,12 +623,26 @@ else:
                         engine = get_query_engine()
                         response = engine.query(prompt)
 
-                        if hasattr(response, 'response'):
-                            response_text = response.response
-                        elif hasattr(response, 'text'):
-                            response_text = response.text
+                        # === CHANGED: robust extraction of text from the response ===
+                        response_text = None
+                        if response is None:
+                            response_text = "No response from the query engine."
                         else:
-                            response_text = str(response)
+                            # Try common attribute names that a response object might expose.
+                            for attr in ("response", "text", "answer", "data"):
+                                val = getattr(response, attr, None)
+                                if val:
+                                    response_text = val
+                                    break
+                            # If nothing found, fallback to the string representation
+                            if response_text is None:
+                                try:
+                                    response_text = str(response)
+                                except Exception:
+                                    response_text = "No response available (unserializable object)."
+
+                        # Ensure we always have a str before cleaning/printing
+                        response_text = "" if response_text is None else str(response_text)
 
                         response_text = clean_text(response_text)
                         st.markdown(response_text)

@@ -5,88 +5,143 @@ load_dotenv()
 
 import streamlit as st
 
-# Configure the page - USE UNICODE EMOJI DIRECTLY, NOT SHORTCODES
+# Configure the page
 st.set_page_config(
     page_title="NGL Strategy RAG Assistant",
-    page_icon="🤖",  # Unicode emoji, not shortcode
+    page_icon="🤖",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# IMPORTANT: Inject CSS early and use !important aggressively for Cloud
+# Clean CSS with proper font sizing and spacing
 st.markdown("""
 <style>
-    /* Reset and base styles for Cloud compatibility */
-    :root {
-        --sidebar-width: 336px;
-        --content-max-width: 1075px;
-        --bottom-padding: 150px;
-        --base-font-size: 16px;
-        --is-mobile: 0;
-    }
-
-    /* Force dark theme for Cloud */
-    .stApp {
-        background-color: #343541 !important;
-        color-scheme: dark !important;
-    }
-
-    /* Fix emoji display - ensure emoji fonts are available */
-    * {
-        font-family: 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', 
-                     'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
-    }
-
-    /* Fix chat input background - override Cloud's theme */
-    .stChatInputContainer {
-        background-color: transparent !important;
+    /* Base reset for Cloud */
+    html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow-x: hidden !important;
     }
     
+    /* Main app container */
+    .stApp {
+        background-color: #343541 !important;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+        font-size: 14px !important;  /* Base font size */
+        line-height: 1.5 !important;
+    }
+    
+    /* Fix font sizes throughout the app */
+    .stMarkdown, .stMarkdown p, .stMarkdown div {
+        font-size: 14px !important;
+        line-height: 1.5 !important;
+        letter-spacing: normal !important;
+        word-spacing: normal !important;
+    }
+    
+    /* Fix oversized chat messages */
+    .stChatMessage {
+        padding: 12px 0 !important;
+        margin: 0 !important;
+    }
+    
+    .stChatMessage div {
+        font-size: 14px !important;
+        line-height: 1.5 !important;
+        letter-spacing: normal !important;
+    }
+    
+    /* Fix chat input */
     .stChatInputContainer textarea {
+        font-size: 14px !important;
+        line-height: 1.5 !important;
+        padding: 12px !important;
         background-color: #40414f !important;
         border: 1px solid #565869 !important;
         color: #ececf1 !important;
-        width: 100% !important;
-        max-width: var(--content-max-width) !important;
-        margin: 0 auto !important;
-        display: block !important;
+        border-radius: 8px !important;
     }
-
-    /* Fix sidebar width and positioning */
-    section[data-testid="stSidebar"] {
-        min-width: 250px !important;
-        max-width: 450px !important;
-        width: var(--sidebar-width) !important;
-    }
-
-    /* Force hide Streamlit Cloud branding and theme overrides */
-    .stDeployButton { display: none !important; }
-    iframe { display: none !important; }
     
-    /* Ensure chat messages container has proper spacing */
-    [data-testid="stChatMessageContainer"] {
-        padding-bottom: 120px !important;
+    /* Fix sidebar text */
+    [data-testid="stSidebar"] * {
+        font-size: 13px !important;
+        line-height: 1.4 !important;
     }
-
-    /* Mobile responsiveness */
+    
+    /* Fix headings */
+    h1 {
+        font-size: 24px !important;
+        line-height: 1.3 !important;
+        margin-bottom: 16px !important;
+    }
+    
+    h2 {
+        font-size: 20px !important;
+        line-height: 1.3 !important;
+        margin-bottom: 12px !important;
+    }
+    
+    h3 {
+        font-size: 16px !important;
+        line-height: 1.3 !important;
+        margin-bottom: 8px !important;
+    }
+    
+    /* Fix button text */
+    .stButton button {
+        font-size: 13px !important;
+        padding: 8px 16px !important;
+    }
+    
+    /* Fix text input */
+    .stTextInput input {
+        font-size: 14px !important;
+        padding: 8px 12px !important;
+        line-height: 1.5 !important;
+    }
+    
+    /* Fix spacing in lists */
+    ul, ol {
+        margin-top: 8px !important;
+        margin-bottom: 8px !important;
+        padding-left: 20px !important;
+    }
+    
+    li {
+        margin-bottom: 4px !important;
+        line-height: 1.5 !important;
+    }
+    
+    /* Fix paragraphs spacing */
+    p {
+        margin-bottom: 12px !important;
+        line-height: 1.5 !important;
+    }
+    
+    /* Fix code blocks */
+    code {
+        font-size: 12px !important;
+        line-height: 1.4 !important;
+    }
+    
+    /* Remove any excessive spacing */
+    .block-container {
+        padding-top: 20px !important;
+        padding-bottom: 20px !important;
+    }
+    
+    /* Mobile adjustments */
     @media (max-width: 768px) {
-        :root {
-            --sidebar-width: 0px !important;
-            --content-max-width: 100% !important;
+        .stApp {
+            font-size: 15px !important;
         }
         
-        section[data-testid="stSidebar"] {
-            transform: translateX(-100%) !important;
-        }
-        
-        .stChatInputContainer {
-            padding-left: 1rem !important;
-            padding-right: 1rem !important;
+        .stChatMessage div {
+            font-size: 15px !important;
         }
         
         .stChatInputContainer textarea {
-            width: 100% !important;
-            max-width: 100% !important;
+            font-size: 15px !important;
         }
     }
 </style>
@@ -100,12 +155,12 @@ if "username" not in st.session_state:
 if "page" not in st.session_state:
     st.session_state.page = "Chat"
 
-# Sidebar - SIMPLIFIED for Cloud compatibility
+# Sidebar
 with st.sidebar:
-    st.title("📊 NGL Strategy")  # Unicode emoji
+    st.title("NGL Strategy")
     
     if not st.session_state.authenticated:
-        st.subheader("🔐 Login")  # Unicode emoji
+        st.subheader("Login")
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
         
@@ -113,12 +168,12 @@ with st.sidebar:
             if username and password:
                 st.session_state.authenticated = True
                 st.session_state.username = username
-                st.success(f"Welcome, {username}! ✅")  # Unicode emoji
+                st.success(f"Welcome, {username}!")
                 st.rerun()
             else:
-                st.error("❌ Please enter username and password")
+                st.error("Please enter username and password")
     else:
-        st.success(f"👤 Logged in as: {st.session_state.username}")
+        st.success(f"Logged in as: {st.session_state.username}")
         
         if st.button("Logout", type="secondary"):
             st.session_state.authenticated = False
@@ -127,59 +182,54 @@ with st.sidebar:
         
         st.divider()
         
-        # Navigation using buttons instead of radio for better Cloud compatibility
-        col1, col2 = st.columns(2)
-        with col1:
-            if st.button("💬 Chat", use_container_width=True):
-                st.session_state.page = "Chat"
-                st.rerun()
-        with col2:
-            if st.button("ℹ️ About", use_container_width=True):
-                st.session_state.page = "About"
-                st.rerun()
+        # Simple navigation
+        if st.button("💬 Chat", use_container_width=True):
+            st.session_state.page = "Chat"
+            st.rerun()
         
-        # Visual indicator
-        st.markdown(f"**Current page:** {st.session_state.page}")
+        if st.button("ℹ️ About", use_container_width=True):
+            st.session_state.page = "About"
+            st.rerun()
 
-# Main content area
+# Main content
 if not st.session_state.authenticated:
-    st.title("🤖 Welcome to NGL Strategy Assistant")
-    st.markdown("### 🔒 Please login to continue")
+    st.title("Welcome to NGL Strategy Assistant")
+    st.markdown("### Please login to continue")
     
     st.markdown("""
     This AI assistant helps you explore and understand NGL Strategy documents through natural conversation.
     
-    **✨ Features:**
-    - 💬 Natural language queries
-    - 📚 Knowledge base powered by your documents
-    - 🎯 Accurate, contextual responses
+    **Features:**
+    - Natural language queries
+    - Knowledge base powered by your documents
+    - Accurate, contextual responses
     
     Login using the sidebar to get started.
     """)
     
 else:
     if st.session_state.page == "About":
-        st.title("📚 NGL Strategy Assistant")
+        st.title("NGL Strategy Assistant")
         
         st.markdown("""
-        ### 🎯 Welcome to your AI-powered NGL Strategy assistant
+        ### Welcome to your AI-powered NGL Strategy assistant
         
         This assistant uses advanced AI to help you quickly find information that is stored in RIM Documents. 
         Ask questions and get instant, accurate answers based on the aforementioned knowledge base.
         
         ---
         
-        #### ⚙️ How it works
+        #### How it works
         
-        **📄 Document Understanding** Your documents are indexed and processed to enable intelligent search and retrieval of relevant information.
+        **Document Understanding** Your documents are indexed and processed to enable intelligent search and retrieval of relevant information.
         
-        **🧠 Context-Aware Responses** The AI analyzes your question along with relevant document sections to provide accurate, contextual answers.
+        **Context-Aware Responses** The AI analyzes your question along with relevant document sections to provide accurate, contextual answers.
         
-        **💭 Natural Conversation** Chat naturally with your knowledge base - ask follow-up questions and explore topics in depth.
+        **Natural Conversation** Chat naturally with your knowledge base - ask follow-up questions and explore topics in depth.
         
         ---
         
-        #### ✨ Key Features
+        #### Key Features
         
         🔍 **Semantic Search** - Find information based on meaning, not just keywords  
         🧠 **AI-Powered Analysis** - Get intelligent summaries and insights  
@@ -188,7 +238,7 @@ else:
         
         ---
         
-        #### 🛠️ Technology
+        #### Technology
         
         This assistant is powered by:
         - **LlamaCloud** for document indexing and retrieval
@@ -197,24 +247,25 @@ else:
         
         ---
         
-        **🚀 Ready to start?** Navigate to the Chat page to begin asking questions.
+        **Ready to start?** Navigate to the Chat page to begin asking questions.
         """)
         
     elif st.session_state.page == "Chat":
-        # Import inside the page to avoid loading issues if dependencies missing
         try:
             from llama_cloud_services import LlamaCloudIndex
             from llama_index.llms.gemini import Gemini
             import re
             
             def clean_text(text):
-                """Clean text for display"""
+                """Clean text for display with proper spacing"""
                 if not text:
                     return ""
-                text = re.sub(r'\*+', '', text)
-                text = re.sub(r'[−‑–—]', '-', text)
-                text = re.sub(r' +', ' ', text)
+                # Remove excessive spaces
+                text = re.sub(r'\s+', ' ', text)
+                # Remove multiple newlines
                 text = re.sub(r'\n\s*\n+', '\n\n', text)
+                # Fix bullet points
+                text = re.sub(r'^\s*[-•*]\s*', '• ', text, flags=re.MULTILINE)
                 return text.strip()
             
             @st.cache_resource(show_spinner=False)
@@ -243,12 +294,12 @@ else:
                 return index.as_query_engine(llm=llm)
             
         except ImportError as e:
-            st.error(f"❌ Missing dependency: {e}")
+            st.error(f"Missing dependency: {e}")
             st.stop()
         
-        st.title("💬 Chat Assistant")
+        st.title("Chat Assistant")
         
-        # Initialize messages in session state
+        # Initialize messages
         if "messages" not in st.session_state:
             st.session_state.messages = []
         
@@ -257,7 +308,7 @@ else:
             with st.chat_message(message["role"]):
                 st.markdown(message["content"])
         
-        # Chat input - USING st.chat_input with custom container styling
+        # Chat input
         prompt = st.chat_input("Ask a question about NGL Strategy...", key="chat_input")
         
         if prompt:
@@ -268,7 +319,7 @@ else:
             
             # Get AI response
             with st.chat_message("assistant"):
-                with st.spinner("🤔 Thinking..."):
+                with st.spinner("Thinking..."):
                     try:
                         engine = get_query_engine()
                         response = engine.query(prompt)
@@ -285,12 +336,12 @@ else:
                         st.session_state.messages.append({"role": "assistant", "content": response_text})
                         
                     except Exception as e:
-                        error_msg = f"❌ Error: {str(e)}"
+                        error_msg = f"Error: {str(e)}"
                         st.error(error_msg)
                         st.session_state.messages.append({"role": "assistant", "content": error_msg})
         
         # Clear chat button
         if st.session_state.messages:
-            if st.button("🗑️ Clear Chat History", type="secondary"):
+            if st.button("Clear Chat History", type="secondary"):
                 st.session_state.messages = []
                 st.rerun()

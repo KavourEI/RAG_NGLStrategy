@@ -254,23 +254,37 @@ This assistant is powered by:
             role = message.get("role", "")
             content = message.get("content", "") or ""
 
-            if role == "assistant":
-                cleaned = clean_llm_response(content)
-            else:
+            if role == "user":
                 # Normalize user whitespace but keep it readable
                 cleaned = re.sub(r"\s+", " ", content).strip()
-
-            content_md = format_for_markdown(cleaned)
-
-            if role == "user":
+                content_md = format_for_markdown(cleaned)
                 name = st.session_state.get("username") or "User"
+                
+                st.markdown(f"**{name}**")
+                st.markdown(content_md)
+            
             elif role == "assistant":
                 name = "Bot"
+                
+                # Show raw text in a copyable code block for debugging
+                with st.expander("🐛 Debug: View Raw Response (click to expand)", expanded=False):
+                    st.code(content, language="text")
+                
+                # Clean and render normally
+                cleaned = clean_llm_response(content)
+                content_md = format_for_markdown(cleaned)
+                
+                st.markdown(f"**{name}**")
+                st.markdown(content_md)
+            
             else:
+                # Fallback for other roles
+                cleaned = re.sub(r"\s+", " ", content).strip()
+                content_md = format_for_markdown(cleaned)
                 name = role.capitalize() or "User"
-
-            st.markdown(f"**{name}**")
-            st.markdown(content_md)
+                
+                st.markdown(f"**{name}**")
+                st.markdown(content_md)
 
         # Render history
         for msg in st.session_state.messages:

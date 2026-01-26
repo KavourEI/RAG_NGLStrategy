@@ -252,7 +252,12 @@ def render():
                             
                             try:
                                 # Use the working upload_file method
-                                index = get_index()
+                                index = LlamaCloudIndex(
+                                    name="NGL_Strategy",
+                                    project_name="Default",
+                                    organization_id="44ae1ea1-e4cb-4a16-b55e-9024ef961a7c",
+                                    api_key=os.getenv("LLAMA_CLOUD_API_KEY"),
+                                    )
                                 index.upload_file(file_path=file_path)
                                 uploaded_files.append(f.name)
                                 st.success(f"Uploaded {f.name}")

@@ -6,7 +6,7 @@ import tempfile
 def render():
     # Lazy-import LlamaIndex bits only when needed
     try:
-        from llama_cloud_services import LlamaCloudIndex
+        from llama_index.indices.managed.llama_cloud import LlamaCloudIndex
         from llama_index.llms.gemini import Gemini
     except ImportError as e:
         st.error(f"Missing dependency: {e}")

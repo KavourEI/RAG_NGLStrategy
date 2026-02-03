@@ -1,13 +1,12 @@
 import os
 import re
-from dotenv import load_dotenv
-
-load_dotenv()
-
 import html
 import streamlit as st
 import tempfile
 import requests
+from dotenv import load_dotenv
+
+load_dotenv()
 
 def render():
     # Lazy-import LlamaIndex bits only when needed

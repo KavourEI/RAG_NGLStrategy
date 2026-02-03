@@ -12,6 +12,10 @@ Your Streamlit Cloud app needs these three secrets configured:
 2. **LLAMA_ORG_ID** - Your LlamaCloud organization ID
 3. **OLLAMA_API_KEY** - Your Ollama Cloud API key for language model inference
 
+## Optional Secrets
+
+4. **LLAMA_PIPELINE_ID** - (Optional) Your LlamaCloud pipeline ID. Defaults to "70fa557d-916f-4372-9dd7-d85457059f10" if not set.
+
 ## How to Add Secrets to Streamlit Cloud
 
 ### Step 1: Access Streamlit Cloud App Settings
@@ -28,6 +32,8 @@ In the secrets editor, add your credentials in TOML format:
 LLAMA_CLOUD_API_KEY = "your_actual_api_key_here"
 LLAMA_ORG_ID = "your_org_id_here"
 OLLAMA_API_KEY = "your_ollama_cloud_api_key_here"
+# Optional: Uncomment and set if using a custom pipeline
+# LLAMA_PIPELINE_ID = "your_pipeline_id_here"
 ```
 
 **Important:** 
@@ -105,6 +111,8 @@ For local development, create a `.env` file in your project root:
 LLAMA_CLOUD_API_KEY=sk-...
 LLAMA_ORG_ID=org-...
 OLLAMA_API_KEY=...
+# Optional: Uncomment and set if using a custom pipeline
+# LLAMA_PIPELINE_ID=your_pipeline_id_here
 ```
 
 The app will automatically load these via `python-dotenv`.

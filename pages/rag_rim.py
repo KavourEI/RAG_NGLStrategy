@@ -13,6 +13,10 @@ def render():
         st.error(f"Missing dependency: {e}")
         st.stop()
 
+    # Configuration constants
+    PIPELINE_ID = os.getenv("LLAMA_PIPELINE_ID", "70fa557d-916f-4372-9dd7-d85457059f10")
+    MAX_SOURCE_TEXT_LENGTH = 200  # Maximum characters to show from source text
+    
     # ---------- Cleaning helpers ----------
 
     def _collapse_single_char_lines(raw: str) -> str:
@@ -81,8 +85,7 @@ def render():
     def fetch_uploaded_documents():
         """Fetch list of uploaded documents from LlamaCloud API"""
         try:
-            pipeline_id = "70fa557d-916f-4372-9dd7-d85457059f10"
-            url = f"https://api.cloud.llamaindex.ai/api/v1/pipelines/{pipeline_id}/files2"
+            url = f"https://api.cloud.llamaindex.ai/api/v1/pipelines/{PIPELINE_ID}/files2"
             
             headers = {
                 'Accept': 'application/json',
@@ -93,9 +96,9 @@ def render():
             
             if response.status_code == 200:
                 data = response.json()
-                # Extract file names from the response
+                # Extract file info from the response (both name and id)
                 files = data.get('files', [])
-                return [file.get('name', 'Unknown') for file in files]
+                return [{'name': file.get('name', 'Unknown'), 'id': file.get('id')} for file in files]
             else:
                 # Include response details in error message for debugging
                 try:
@@ -103,13 +106,42 @@ def render():
                 except:
                     error_detail = response.text
                 st.error(f"Failed to fetch documents (status {response.status_code}): {error_detail}")
-                return ["current.pdf"]  # Fallback to default
+                return [{'name': 'current.pdf', 'id': None}]  # Fallback to default
         except requests.RequestException as e:
             st.error(f"Network error fetching documents: {str(e)}")
-            return ["current.pdf"]  # Fallback to default
+            return [{'name': 'current.pdf', 'id': None}]  # Fallback to default
         except Exception as e:
             st.error(f"Unexpected error fetching documents: {str(e)}")
-            return ["current.pdf"]  # Fallback to default
+            return [{'name': 'current.pdf', 'id': None}]  # Fallback to default
+
+    def delete_document(file_id: str, file_name: str):
+        """Delete a document from LlamaCloud"""
+        try:
+            url = f"https://api.cloud.llamaindex.ai/api/v1/pipelines/{PIPELINE_ID}/files/{file_id}"
+            
+            headers = {
+                'Accept': 'application/json',
+                'Authorization': f'Bearer {os.getenv("LLAMA_CLOUD_API_KEY")}'
+            }
+            
+            response = requests.delete(url, headers=headers)
+            
+            if response.status_code in [200, 204]:
+                st.success(f"Successfully deleted {file_name}")
+                return True
+            else:
+                try:
+                    error_detail = response.json()
+                except:
+                    error_detail = response.text
+                st.error(f"Failed to delete {file_name} (status {response.status_code}): {error_detail}")
+                return False
+        except requests.RequestException as e:
+            st.error(f"Network error deleting {file_name}: {str(e)}")
+            return False
+        except Exception as e:
+            st.error(f"Unexpected error deleting {file_name}: {str(e)}")
+            return False
 
     # ---------- LlamaIndex resources ----------
 
@@ -254,23 +286,37 @@ def render():
     
     # Right container - Data Sources
     with right_col:
-        # Generate dynamic HTML for uploaded documents
-        documents_html = ""
-        for doc in st.session_state.uploaded_documents:
-            documents_html += f'<div class="data-source-item">📄 {doc}</div>\n'
-        
-        st.markdown(f'''
+        st.markdown('''
         <div class="side-container">
             <div class="container-title">Data Used</div>
             <div class="container-divider"></div>
-            <div class="container-content">
-                {documents_html}
-            </div>
         </div>
         ''', unsafe_allow_html=True)
         
-        # Button positioned at bottom of container using negative margin
-        st.markdown('<div style="margin-top: -70px; padding: 0 20px 20px 20px;">', unsafe_allow_html=True)
+        # Display documents with delete buttons in a scrollable container
+        # -60px margin overlaps with the side-container header to position correctly
+        # 45vh max-height ensures scrollability for many documents
+        st.markdown('<div style="margin-top: -60px; padding: 0 20px; max-height: 45vh; overflow-y: auto;">', unsafe_allow_html=True)
+        
+        for idx, doc in enumerate(st.session_state.uploaded_documents):
+            doc_name = doc['name'] if isinstance(doc, dict) else doc
+            doc_id = doc.get('id') if isinstance(doc, dict) else None
+            
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.markdown(f'<div style="color: #FFFFFF; padding: 5px 0;">📄 {doc_name}</div>', unsafe_allow_html=True)
+            with col2:
+                if doc_id:
+                    if st.button("🗑️", key=f"delete_{idx}", help=f"Delete {doc_name}"):
+                        if delete_document(doc_id, doc_name):
+                            # Refresh the document list
+                            st.session_state.uploaded_documents = fetch_uploaded_documents()
+                            st.rerun()
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Button positioned at bottom of container
+        st.markdown('<div style="padding: 10px 20px 20px 20px;">', unsafe_allow_html=True)
         
         # Initialize session state for uploader visibility
         if "show_uploader" not in st.session_state:
@@ -339,6 +385,7 @@ def render():
             def render_message(message: dict):
                 role = message.get("role", "")
                 content = message.get("content", "") or ""
+                sources = message.get("sources", [])
 
                 if role == "user":
                     cleaned = re.sub(r"\s+", " ", content).strip()
@@ -353,6 +400,17 @@ def render():
                     cleaned = clean_llm_response(content)
                     content_md = format_for_markdown(cleaned)
                     st.markdown(f"**{name}:** {content_md}")
+                    
+                    # Display sources if available
+                    if sources:
+                        with st.expander("📚 Sources Used", expanded=False):
+                            for idx, source in enumerate(sources, 1):
+                                st.markdown(f"**Source {idx}:** {source.get('file_name', 'Unknown')}")
+                                if source.get('text'):
+                                    text = source['text']
+                                    preview = f"_{text[:MAX_SOURCE_TEXT_LENGTH]}..._" if len(text) > MAX_SOURCE_TEXT_LENGTH else f"_{text}_"
+                                    st.markdown(preview)
+                                st.markdown("---")
 
                 else:
                     cleaned = re.sub(r"\s+", " ", content).strip()
@@ -391,7 +449,19 @@ def render():
                     response_text = str(response)
 
                 cleaned_response = clean_llm_response(response_text)
-                bot_msg = {"role": "assistant", "content": cleaned_response}
+                
+                # Extract source information
+                sources = []
+                if hasattr(response, "source_nodes"):
+                    for node in response.source_nodes:
+                        source_info = {
+                            'file_name': node.node.metadata.get('file_name', 'Unknown'),
+                            'text': node.node.text if hasattr(node.node, 'text') else '',
+                            'score': node.score if hasattr(node, 'score') else None
+                        }
+                        sources.append(source_info)
+                
+                bot_msg = {"role": "assistant", "content": cleaned_response, "sources": sources}
                 st.session_state.messages.append(bot_msg)
 
             except Exception as e:

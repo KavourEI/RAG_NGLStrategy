@@ -13,6 +13,10 @@ def render():
         st.error(f"Missing dependency: {e}")
         st.stop()
 
+    # Configuration constants
+    PIPELINE_ID = os.getenv("LLAMA_PIPELINE_ID", "70fa557d-916f-4372-9dd7-d85457059f10")
+    MAX_SOURCE_TEXT_LENGTH = 200  # Maximum characters to show from source text
+    
     # ---------- Cleaning helpers ----------
 
     def _collapse_single_char_lines(raw: str) -> str:
@@ -81,8 +85,7 @@ def render():
     def fetch_uploaded_documents():
         """Fetch list of uploaded documents from LlamaCloud API"""
         try:
-            pipeline_id = "70fa557d-916f-4372-9dd7-d85457059f10"
-            url = f"https://api.cloud.llamaindex.ai/api/v1/pipelines/{pipeline_id}/files2"
+            url = f"https://api.cloud.llamaindex.ai/api/v1/pipelines/{PIPELINE_ID}/files2"
             
             headers = {
                 'Accept': 'application/json',
@@ -114,8 +117,7 @@ def render():
     def delete_document(file_id: str, file_name: str):
         """Delete a document from LlamaCloud"""
         try:
-            pipeline_id = "70fa557d-916f-4372-9dd7-d85457059f10"
-            url = f"https://api.cloud.llamaindex.ai/api/v1/pipelines/{pipeline_id}/files/{file_id}"
+            url = f"https://api.cloud.llamaindex.ai/api/v1/pipelines/{PIPELINE_ID}/files/{file_id}"
             
             headers = {
                 'Accept': 'application/json',
@@ -292,6 +294,8 @@ def render():
         ''', unsafe_allow_html=True)
         
         # Display documents with delete buttons in a scrollable container
+        # -60px margin overlaps with the side-container header to position correctly
+        # 45vh max-height ensures scrollability for many documents
         st.markdown('<div style="margin-top: -60px; padding: 0 20px; max-height: 45vh; overflow-y: auto;">', unsafe_allow_html=True)
         
         for idx, doc in enumerate(st.session_state.uploaded_documents):
@@ -403,7 +407,9 @@ def render():
                             for idx, source in enumerate(sources, 1):
                                 st.markdown(f"**Source {idx}:** {source.get('file_name', 'Unknown')}")
                                 if source.get('text'):
-                                    st.markdown(f"_{source['text'][:200]}..._" if len(source['text']) > 200 else f"_{source['text']}_")
+                                    text = source['text']
+                                    preview = f"_{text[:MAX_SOURCE_TEXT_LENGTH]}..._" if len(text) > MAX_SOURCE_TEXT_LENGTH else f"_{text}_"
+                                    st.markdown(preview)
                                 st.markdown("---")
 
                 else:

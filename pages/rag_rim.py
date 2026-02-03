@@ -2,6 +2,7 @@ import os
 import re
 import streamlit as st
 import tempfile
+import requests
 
 def render():
     # Lazy-import LlamaIndex bits only when needed
@@ -75,6 +76,41 @@ def render():
             paragraphs[i] = p.replace("\n", "  \n")
         return "\n\n".join(paragraphs)
 
+    # ---------- LlamaCloud Document Fetching ----------
+
+    def fetch_uploaded_documents():
+        """Fetch list of uploaded documents from LlamaCloud API"""
+        try:
+            pipeline_id = "70fa557d-916f-4372-9dd7-d85457059f10"
+            url = f"https://api.cloud.llamaindex.ai/api/v1/pipelines/{pipeline_id}/files2"
+            
+            headers = {
+                'Accept': 'application/json',
+                'Authorization': f'Bearer {os.getenv("LLAMA_CLOUD_API_KEY")}'
+            }
+            
+            response = requests.get(url, headers=headers)
+            
+            if response.status_code == 200:
+                data = response.json()
+                # Extract file names from the response
+                files = data.get('files', [])
+                return [file.get('name', 'Unknown') for file in files]
+            else:
+                # Include response details in error message for debugging
+                try:
+                    error_detail = response.json()
+                except:
+                    error_detail = response.text
+                st.error(f"Failed to fetch documents (status {response.status_code}): {error_detail}")
+                return ["current.pdf"]  # Fallback to default
+        except requests.RequestException as e:
+            st.error(f"Network error fetching documents: {str(e)}")
+            return ["current.pdf"]  # Fallback to default
+        except Exception as e:
+            st.error(f"Unexpected error fetching documents: {str(e)}")
+            return ["current.pdf"]  # Fallback to default
+
     # ---------- LlamaIndex resources ----------
 
     @st.cache_resource(show_spinner=False)
@@ -103,6 +139,14 @@ def render():
 
     # ---------- Chat UI ----------
     st.title("Chat Assistant")
+    
+    # Initialize session state for messages and uploaded documents
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+    
+    # Fetch uploaded documents on first load or when not cached
+    if "uploaded_documents" not in st.session_state:
+        st.session_state.uploaded_documents = fetch_uploaded_documents()
     
     # Add custom CSS for rounded containers
     st.markdown("""
@@ -192,9 +236,6 @@ def render():
         </style>
     """, unsafe_allow_html=True)
 
-    if "messages" not in st.session_state:
-        st.session_state.messages = []
-
     # Create two-column layout (left container commented out)
     # left_col, center_col, right_col = st.columns([1, 2, 1])
     center_col, right_col = st.columns([3, 1])
@@ -213,12 +254,17 @@ def render():
     
     # Right container - Data Sources
     with right_col:
-        st.markdown('''
+        # Generate dynamic HTML for uploaded documents
+        documents_html = ""
+        for doc in st.session_state.uploaded_documents:
+            documents_html += f'<div class="data-source-item">📄 {doc}</div>\n'
+        
+        st.markdown(f'''
         <div class="side-container">
             <div class="container-title">Data Used</div>
             <div class="container-divider"></div>
             <div class="container-content">
-                <div class="data-source-item">📄 current.pdf</div>
+                {documents_html}
             </div>
         </div>
         ''', unsafe_allow_html=True)
@@ -275,6 +321,8 @@ def render():
                         if uploaded_files:
                             st.balloons()
                             st.success(f"Successfully uploaded {len(uploaded_files)} file(s): {', '.join(uploaded_files)}")
+                            # Refresh the uploaded documents list
+                            st.session_state.uploaded_documents = fetch_uploaded_documents()
                         
                         # Reset the uploader state
                         st.session_state.show_uploader = False

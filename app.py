@@ -50,6 +50,9 @@ with st.sidebar:
             if username and password:
                 st.session_state.authenticated = True
                 st.session_state.username = username
+                # Clear the uploaded_documents cache to force refresh on next page load
+                if "uploaded_documents" in st.session_state:
+                    del st.session_state.uploaded_documents
                 st.success(f"Welcome, {username}!")
                 st.rerun()
             else:

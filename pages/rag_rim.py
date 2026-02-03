@@ -1,8 +1,12 @@
 import os
 import re
+import html
 import streamlit as st
 import tempfile
 import requests
+from dotenv import load_dotenv
+
+load_dotenv()
 
 def render():
     # Lazy-import LlamaIndex bits only when needed
@@ -68,7 +72,8 @@ def render():
         text = re.sub(r"(\d/mt)([A-Za-z])", r"\1 \2", text)
         text = re.sub(r"\bmtto\b", "mt to", text)
         text = re.sub(r"([.,!?;:])([A-Za-z])", r"\1 \2", text)
-        text = text.replace("$", r"\$")
+        # Dollar signs are NOT escaped here - they remain as-is ($560-570/mt)
+        # HTML rendering with unsafe_allow_html=True prevents KaTeX from interpreting them
         return text.strip()
 
     def format_for_markdown(text: str) -> str:
@@ -79,6 +84,39 @@ def render():
         for i, p in enumerate(paragraphs):
             paragraphs[i] = p.replace("\n", "  \n")
         return "\n\n".join(paragraphs)
+    
+    def prepare_html_content(text: str) -> str:
+        """
+        Prepare cleaned text for HTML rendering to prevent KaTeX interpretation.
+        
+        Takes cleaned text, escapes HTML entities (preserving dollar signs),
+        converts line breaks to <br>, and wraps paragraphs in <p> tags.
+        Using unsafe_allow_html=True with this output prevents Streamlit from
+        processing dollar signs as LaTeX delimiters.
+        
+        Args:
+            text: Cleaned text with paragraphs separated by double newlines
+                  and line breaks indicated by single newlines
+        
+        Returns:
+            HTML-formatted string with proper paragraph and line break tags
+        """
+        if not text:
+            return ""
+        
+        # Split into paragraphs first (before escaping)
+        paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+        
+        html_paragraphs = []
+        for paragraph in paragraphs:
+            # Escape HTML entities (preserving dollar signs as-is)
+            escaped = html.escape(paragraph)
+            # Convert single newlines to <br> tags
+            escaped = escaped.replace("\n", "<br>")
+            # Wrap in paragraph tags
+            html_paragraphs.append(f"<p>{escaped}</p>")
+        
+        return "".join(html_paragraphs)
 
     # ---------- LlamaCloud Document Fetching ----------
 
@@ -290,14 +328,10 @@ def render():
         <div class="side-container">
             <div class="container-title">Data Used</div>
             <div class="container-divider"></div>
-        </div>
+            <div class="container-content">
         ''', unsafe_allow_html=True)
         
-        # Display documents with delete buttons in a scrollable container
-        # -60px margin overlaps with the side-container header to position correctly
-        # 45vh max-height ensures scrollability for many documents
-        st.markdown('<div style="margin-top: -60px; padding: 0 20px; max-height: 45vh; overflow-y: auto;">', unsafe_allow_html=True)
-        
+        # Display documents with delete buttons in a scrollable area inside the container
         for idx, doc in enumerate(st.session_state.uploaded_documents):
             doc_name = doc['name'] if isinstance(doc, dict) else doc
             doc_id = doc.get('id') if isinstance(doc, dict) else None
@@ -313,10 +347,10 @@ def render():
                             st.session_state.uploaded_documents = fetch_uploaded_documents()
                             st.rerun()
         
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)  # Close container-content
         
         # Button positioned at bottom of container
-        st.markdown('<div style="padding: 10px 20px 20px 20px;">', unsafe_allow_html=True)
+        st.markdown('<div class="container-bottom">', unsafe_allow_html=True)
         
         # Initialize session state for uploader visibility
         if "show_uploader" not in st.session_state:
@@ -374,7 +408,7 @@ def render():
                         st.session_state.show_uploader = False
                         st.rerun()
         
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('</div></div>', unsafe_allow_html=True)  # Close container-bottom and side-container
     
     # Center column - Main Chat Area
     with center_col:
@@ -389,17 +423,17 @@ def render():
 
                 if role == "user":
                     cleaned = re.sub(r"\s+", " ", content).strip()
-                    content_md = format_for_markdown(cleaned)
+                    content_html = prepare_html_content(cleaned)
                     name = st.session_state.get("username") or "User"
-                    st.markdown(f"**{name}:** {content_md}")
+                    st.markdown(f'<strong>{html.escape(name)}:</strong> {content_html}', unsafe_allow_html=True)
 
                 elif role == "assistant":
                     name = "Bot"
                     with st.expander("🐛 Debug: View Raw Response", expanded=False):
                         st.code(content, language="text")
                     cleaned = clean_llm_response(content)
-                    content_md = format_for_markdown(cleaned)
-                    st.markdown(f"**{name}:** {content_md}")
+                    content_html = prepare_html_content(cleaned)
+                    st.markdown(f'<strong>{html.escape(name)}:</strong> {content_html}', unsafe_allow_html=True)
                     
                     # Display sources if available
                     if sources:
@@ -414,9 +448,9 @@ def render():
 
                 else:
                     cleaned = re.sub(r"\s+", " ", content).strip()
-                    content_md = format_for_markdown(cleaned)
+                    content_html = prepare_html_content(cleaned)
                     name = role.capitalize() or "User"
-                    st.markdown(f"**{name}:** {content_md}")
+                    st.markdown(f'<strong>{html.escape(name)}:</strong> {content_html}', unsafe_allow_html=True)
 
             for msg in st.session_state.messages:
                 render_message(msg)

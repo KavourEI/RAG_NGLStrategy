@@ -68,7 +68,7 @@ def render():
         text = re.sub(r"(\d/mt)([A-Za-z])", r"\1 \2", text)
         text = re.sub(r"\bmtto\b", "mt to", text)
         text = re.sub(r"([.,!?;:])([A-Za-z])", r"\1 \2", text)
-        text = text.replace("$", r"\$")
+        # Don't escape dollar signs here - we'll handle them in HTML rendering
         return text.strip()
 
     def format_for_markdown(text: str) -> str:
@@ -79,6 +79,16 @@ def render():
         for i, p in enumerate(paragraphs):
             paragraphs[i] = p.replace("\n", "  \n")
         return "\n\n".join(paragraphs)
+    
+    def escape_html(text: str) -> str:
+        """Escape HTML entities to prevent unwanted rendering"""
+        if not text:
+            return ""
+        return (text.replace("&", "&amp;")
+                    .replace("<", "&lt;")
+                    .replace(">", "&gt;")
+                    .replace('"', "&quot;")
+                    .replace("'", "&#39;"))
 
     # ---------- LlamaCloud Document Fetching ----------
 
@@ -290,14 +300,10 @@ def render():
         <div class="side-container">
             <div class="container-title">Data Used</div>
             <div class="container-divider"></div>
-        </div>
+            <div class="container-content">
         ''', unsafe_allow_html=True)
         
-        # Display documents with delete buttons in a scrollable container
-        # -60px margin overlaps with the side-container header to position correctly
-        # 45vh max-height ensures scrollability for many documents
-        st.markdown('<div style="margin-top: -60px; padding: 0 20px; max-height: 45vh; overflow-y: auto;">', unsafe_allow_html=True)
-        
+        # Display documents with delete buttons in a scrollable area inside the container
         for idx, doc in enumerate(st.session_state.uploaded_documents):
             doc_name = doc['name'] if isinstance(doc, dict) else doc
             doc_id = doc.get('id') if isinstance(doc, dict) else None
@@ -313,10 +319,10 @@ def render():
                             st.session_state.uploaded_documents = fetch_uploaded_documents()
                             st.rerun()
         
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)  # Close container-content
         
         # Button positioned at bottom of container
-        st.markdown('<div style="padding: 10px 20px 20px 20px;">', unsafe_allow_html=True)
+        st.markdown('<div class="container-bottom">', unsafe_allow_html=True)
         
         # Initialize session state for uploader visibility
         if "show_uploader" not in st.session_state:
@@ -374,7 +380,7 @@ def render():
                         st.session_state.show_uploader = False
                         st.rerun()
         
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('</div></div>', unsafe_allow_html=True)  # Close container-bottom and side-container
     
     # Center column - Main Chat Area
     with center_col:
@@ -390,8 +396,9 @@ def render():
                 if role == "user":
                     cleaned = re.sub(r"\s+", " ", content).strip()
                     content_md = format_for_markdown(cleaned)
+                    content_html = escape_html(content_md).replace("  \n", "<br>").replace("\n\n", "</p><p>")
                     name = st.session_state.get("username") or "User"
-                    st.markdown(f"**{name}:** {content_md}")
+                    st.markdown(f'<p><strong>{escape_html(name)}:</strong> {content_html}</p>', unsafe_allow_html=True)
 
                 elif role == "assistant":
                     name = "Bot"
@@ -399,7 +406,8 @@ def render():
                         st.code(content, language="text")
                     cleaned = clean_llm_response(content)
                     content_md = format_for_markdown(cleaned)
-                    st.markdown(f"**{name}:** {content_md}")
+                    content_html = escape_html(content_md).replace("  \n", "<br>").replace("\n\n", "</p><p>")
+                    st.markdown(f'<p><strong>{escape_html(name)}:</strong> {content_html}</p>', unsafe_allow_html=True)
                     
                     # Display sources if available
                     if sources:
@@ -415,8 +423,9 @@ def render():
                 else:
                     cleaned = re.sub(r"\s+", " ", content).strip()
                     content_md = format_for_markdown(cleaned)
+                    content_html = escape_html(content_md).replace("  \n", "<br>").replace("\n\n", "</p><p>")
                     name = role.capitalize() or "User"
-                    st.markdown(f"**{name}:** {content_md}")
+                    st.markdown(f'<p><strong>{escape_html(name)}:</strong> {content_html}</p>', unsafe_allow_html=True)
 
             for msg in st.session_state.messages:
                 render_message(msg)

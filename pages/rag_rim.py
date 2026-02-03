@@ -1,5 +1,10 @@
 import os
 import re
+import html
+from dotenv import load_dotenv
+
+load_dotenv()
+
 import streamlit as st
 import tempfile
 import requests
@@ -68,7 +73,8 @@ def render():
         text = re.sub(r"(\d/mt)([A-Za-z])", r"\1 \2", text)
         text = re.sub(r"\bmtto\b", "mt to", text)
         text = re.sub(r"([.,!?;:])([A-Za-z])", r"\1 \2", text)
-        # Don't escape dollar signs here - we'll handle them in HTML rendering
+        # Dollar signs are NOT escaped here - they remain as-is ($560-570/mt)
+        # HTML rendering with unsafe_allow_html=True prevents KaTeX from interpreting them
         return text.strip()
 
     def format_for_markdown(text: str) -> str:
@@ -80,15 +86,23 @@ def render():
             paragraphs[i] = p.replace("\n", "  \n")
         return "\n\n".join(paragraphs)
     
-    def escape_html(text: str) -> str:
-        """Escape HTML entities to prevent unwanted rendering"""
+    def prepare_html_content(text: str) -> str:
+        """
+        Prepare content for HTML rendering to prevent KaTeX interpretation.
+        
+        Converts markdown-formatted text to properly escaped HTML with paragraph tags.
+        Using unsafe_allow_html=True with this function prevents Streamlit from
+        processing dollar signs as LaTeX delimiters.
+        """
         if not text:
             return ""
-        return (text.replace("&", "&amp;")
-                    .replace("<", "&lt;")
-                    .replace(">", "&gt;")
-                    .replace('"', "&quot;")
-                    .replace("'", "&#39;"))
+        # Escape HTML entities (preserving dollar signs as-is)
+        escaped = html.escape(text)
+        # Convert line breaks to <br> tags
+        escaped = escaped.replace("  \n", "<br>")
+        # Split by double newlines and wrap each paragraph in <p> tags
+        paragraphs = [f"<p>{p}</p>" for p in escaped.split("\n\n") if p.strip()]
+        return "".join(paragraphs)
 
     # ---------- LlamaCloud Document Fetching ----------
 
@@ -396,12 +410,9 @@ def render():
                 if role == "user":
                     cleaned = re.sub(r"\s+", " ", content).strip()
                     content_md = format_for_markdown(cleaned)
-                    content_html = escape_html(content_md).replace("  \n", "<br>")
-                    # Handle paragraphs: split by \n\n and wrap each in <p> tags
-                    paragraphs = [f"<p>{p}</p>" for p in content_html.split("\n\n") if p.strip()]
-                    content_html = "".join(paragraphs)
+                    content_html = prepare_html_content(content_md)
                     name = st.session_state.get("username") or "User"
-                    st.markdown(f'<strong>{escape_html(name)}:</strong> {content_html}', unsafe_allow_html=True)
+                    st.markdown(f'<strong>{html.escape(name)}:</strong> {content_html}', unsafe_allow_html=True)
 
                 elif role == "assistant":
                     name = "Bot"
@@ -409,11 +420,8 @@ def render():
                         st.code(content, language="text")
                     cleaned = clean_llm_response(content)
                     content_md = format_for_markdown(cleaned)
-                    content_html = escape_html(content_md).replace("  \n", "<br>")
-                    # Handle paragraphs: split by \n\n and wrap each in <p> tags
-                    paragraphs = [f"<p>{p}</p>" for p in content_html.split("\n\n") if p.strip()]
-                    content_html = "".join(paragraphs)
-                    st.markdown(f'<strong>{escape_html(name)}:</strong> {content_html}', unsafe_allow_html=True)
+                    content_html = prepare_html_content(content_md)
+                    st.markdown(f'<strong>{html.escape(name)}:</strong> {content_html}', unsafe_allow_html=True)
                     
                     # Display sources if available
                     if sources:
@@ -429,12 +437,9 @@ def render():
                 else:
                     cleaned = re.sub(r"\s+", " ", content).strip()
                     content_md = format_for_markdown(cleaned)
-                    content_html = escape_html(content_md).replace("  \n", "<br>")
-                    # Handle paragraphs: split by \n\n and wrap each in <p> tags
-                    paragraphs = [f"<p>{p}</p>" for p in content_html.split("\n\n") if p.strip()]
-                    content_html = "".join(paragraphs)
+                    content_html = prepare_html_content(content_md)
                     name = role.capitalize() or "User"
-                    st.markdown(f'<strong>{escape_html(name)}:</strong> {content_html}', unsafe_allow_html=True)
+                    st.markdown(f'<strong>{html.escape(name)}:</strong> {content_html}', unsafe_allow_html=True)
 
             for msg in st.session_state.messages:
                 render_message(msg)

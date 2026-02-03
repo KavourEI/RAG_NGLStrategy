@@ -1,5 +1,6 @@
 streamlit==1.38.0
 python-dotenv
+requests
 
 llama-index
 llama-index-core==0.13.0

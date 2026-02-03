@@ -1,10 +1,10 @@
 import os
 import re
-import html
 from dotenv import load_dotenv
 
 load_dotenv()
 
+import html
 import streamlit as st
 import tempfile
 import requests
@@ -88,21 +88,36 @@ def render():
     
     def prepare_html_content(text: str) -> str:
         """
-        Prepare content for HTML rendering to prevent KaTeX interpretation.
+        Prepare cleaned text for HTML rendering to prevent KaTeX interpretation.
         
-        Converts markdown-formatted text to properly escaped HTML with paragraph tags.
-        Using unsafe_allow_html=True with this function prevents Streamlit from
+        Takes cleaned text, escapes HTML entities (preserving dollar signs),
+        converts line breaks to <br>, and wraps paragraphs in <p> tags.
+        Using unsafe_allow_html=True with this output prevents Streamlit from
         processing dollar signs as LaTeX delimiters.
+        
+        Args:
+            text: Cleaned text with paragraphs separated by double newlines
+                  and line breaks indicated by single newlines
+        
+        Returns:
+            HTML-formatted string with proper paragraph and line break tags
         """
         if not text:
             return ""
-        # Escape HTML entities (preserving dollar signs as-is)
-        escaped = html.escape(text)
-        # Convert line breaks to <br> tags
-        escaped = escaped.replace("  \n", "<br>")
-        # Split by double newlines and wrap each paragraph in <p> tags
-        paragraphs = [f"<p>{p}</p>" for p in escaped.split("\n\n") if p.strip()]
-        return "".join(paragraphs)
+        
+        # Split into paragraphs first (before escaping)
+        paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+        
+        html_paragraphs = []
+        for paragraph in paragraphs:
+            # Escape HTML entities (preserving dollar signs as-is)
+            escaped = html.escape(paragraph)
+            # Convert single newlines to <br> tags
+            escaped = escaped.replace("\n", "<br>")
+            # Wrap in paragraph tags
+            html_paragraphs.append(f"<p>{escaped}</p>")
+        
+        return "".join(html_paragraphs)
 
     # ---------- LlamaCloud Document Fetching ----------
 
@@ -409,8 +424,7 @@ def render():
 
                 if role == "user":
                     cleaned = re.sub(r"\s+", " ", content).strip()
-                    content_md = format_for_markdown(cleaned)
-                    content_html = prepare_html_content(content_md)
+                    content_html = prepare_html_content(cleaned)
                     name = st.session_state.get("username") or "User"
                     st.markdown(f'<strong>{html.escape(name)}:</strong> {content_html}', unsafe_allow_html=True)
 
@@ -419,8 +433,7 @@ def render():
                     with st.expander("🐛 Debug: View Raw Response", expanded=False):
                         st.code(content, language="text")
                     cleaned = clean_llm_response(content)
-                    content_md = format_for_markdown(cleaned)
-                    content_html = prepare_html_content(content_md)
+                    content_html = prepare_html_content(cleaned)
                     st.markdown(f'<strong>{html.escape(name)}:</strong> {content_html}', unsafe_allow_html=True)
                     
                     # Display sources if available
@@ -436,8 +449,7 @@ def render():
 
                 else:
                     cleaned = re.sub(r"\s+", " ", content).strip()
-                    content_md = format_for_markdown(cleaned)
-                    content_html = prepare_html_content(content_md)
+                    content_html = prepare_html_content(cleaned)
                     name = role.capitalize() or "User"
                     st.markdown(f'<strong>{html.escape(name)}:</strong> {content_html}', unsafe_allow_html=True)
 

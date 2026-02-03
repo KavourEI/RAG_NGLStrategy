@@ -3,7 +3,6 @@ import re
 import streamlit as st
 import tempfile
 import requests
-import json
 
 def render():
     # Lazy-import LlamaIndex bits only when needed
@@ -98,10 +97,18 @@ def render():
                 files = data.get('files', [])
                 return [file.get('name', 'Unknown') for file in files]
             else:
-                st.error(f"Failed to fetch documents: {response.status_code}")
+                # Include response details in error message for debugging
+                try:
+                    error_detail = response.json()
+                except:
+                    error_detail = response.text
+                st.error(f"Failed to fetch documents (status {response.status_code}): {error_detail}")
                 return ["current.pdf"]  # Fallback to default
+        except requests.RequestException as e:
+            st.error(f"Network error fetching documents: {str(e)}")
+            return ["current.pdf"]  # Fallback to default
         except Exception as e:
-            st.error(f"Error fetching documents: {str(e)}")
+            st.error(f"Unexpected error fetching documents: {str(e)}")
             return ["current.pdf"]  # Fallback to default
 
     # ---------- LlamaIndex resources ----------

@@ -21,8 +21,13 @@ load_dotenv()
 # ---------- Configuration ----------
 
 def get_pipeline_id():
-    """Get the pipeline ID from environment variables."""
-    return os.getenv("LLAMA_PIPELINE_ID", os.getenv("LLAMA_NGL_PIPELINE_ID"))
+    """
+    Get the pipeline ID from environment variables.
+    
+    Checks LLAMA_PIPELINE_ID first, then falls back to LLAMA_NGL_PIPELINE_ID.
+    Returns None if neither is set - callers should handle this case.
+    """
+    return os.getenv("LLAMA_PIPELINE_ID") or os.getenv("LLAMA_NGL_PIPELINE_ID")
 
 
 def get_api_key():
@@ -255,8 +260,8 @@ def upload_files_batch(uploaded_files, name=None, project_name=None, org_id=None
             try:
                 os.remove(file_path)
                 os.rmdir(temp_dir)
-            except:
-                pass
+            except OSError:
+                pass  # Cleanup errors are non-critical
     
     return {
         'success_files': success_files,

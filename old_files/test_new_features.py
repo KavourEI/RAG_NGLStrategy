@@ -21,7 +21,7 @@ def test_document_structure():
     # Import the function (we need to do this dynamically)
     import sys
     import importlib.util
-    spec = importlib.util.spec_from_file_location("rag_rim", "pages/rag_rim.py")
+    spec = importlib.util.spec_from_file_location("rag_rim", "../pages/rag_rim.py")
     
     # The module contains streamlit code, so we need to mock it
     with patch('streamlit.cache_resource'):

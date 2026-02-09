@@ -9,22 +9,10 @@ import importlib
 
 # Configure the page
 st.set_page_config(
-    page_title="NGL Strategy RAG Assistant",
+    page_title="NGL Strategy RIM Documents Assistant",
     page_icon="🤖",
     layout="wide",
     initial_sidebar_state="expanded",
-)
-
-# Clean CSS to hide default Streamlit navigation
-st.markdown(
-    """
-    <style>
-        [data-testid="stSidebarNav"] {
-            display: none;
-        }
-    </style>
-""",
-    unsafe_allow_html=True,
 )
 
 # Initialize session state
@@ -41,12 +29,15 @@ if "page" not in st.session_state:
 with st.sidebar:
     st.title("NGL Strategy")
 
+    st.divider()
+
     if not st.session_state.authenticated:
         st.subheader("Login")
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
 
-        if st.button("Login", type="primary"):
+
+        if st.button("Login", type="primary", use_container_width=True):
             if username and password:
                 st.session_state.authenticated = True
                 st.session_state.username = username
@@ -64,16 +55,16 @@ with st.sidebar:
             st.session_state.username = ""
             st.rerun()
 
-    st.divider()
+        st.divider()
 
-    # Simple navigation - use plain text labels (no emojis)
-    if st.button("Chat", use_container_width=True):
-        st.session_state.page = "Chat"
-        st.rerun()
+        # Simple navigation - use plain text labels (no emojis)
+        if st.button("Chat", use_container_width=True):
+            st.session_state.page = "Chat"
+            st.rerun()
 
-    if st.button("About", use_container_width=True):
-        st.session_state.page = "About"
-        st.rerun()
+        if st.button("About", use_container_width=True):
+            st.session_state.page = "About"
+            st.rerun()
 
 # Main content
 if not st.session_state.authenticated:

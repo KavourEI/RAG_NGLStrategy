@@ -20,103 +20,6 @@ def render():
     # Configuration constants
     PIPELINE_ID = os.getenv("LLAMA_PIPELINE_ID", "70fa557d-916f-4372-9dd7-d85457059f10")
     MAX_SOURCE_TEXT_LENGTH = 200  # Maximum characters to show from source text
-    
-    # ---------- Cleaning helpers ----------
-
-    def _collapse_single_char_lines(raw: str) -> str:
-        if not raw:
-            return ""
-
-        lines = raw.split("\n")
-        out = []
-        buf = []
-
-        def flush_buf():
-            nonlocal out, buf
-            if not buf:
-                return
-            s = "".join(buf)
-            s = re.sub(r"\s*([,./])\s*", r"\1", s)
-            s = re.sub(r"\s*([-])\s*", r"\1", s)
-            out.append(s)
-            buf = []
-
-        for line in lines:
-            t = line.strip()
-            if len(t) == 1:
-                buf.append(t)
-            else:
-                flush_buf()
-                out.append(t)
-
-        flush_buf()
-        return "\n".join(out)
-
-    def clean_llm_response(text: str) -> str:
-        if not text:
-            return ""
-
-        text = _collapse_single_char_lines(text)
-
-        text = (
-            text.replace("−", "-")
-                .replace("‑", "-")
-                .replace("–", "-")
-                .replace("—", "-")
-        )
-
-        text = re.sub(r"[ \t]+", " ", text)
-        text = re.sub(r"\n\s*\n+", "\n\n", text)
-        text = re.sub(r"(\d)\s*-\s*(\d)", r"\1-\2", text)
-        text = re.sub(r"(\d)/(mt)\b", r"\1/mt", text)
-        text = re.sub(r"(\d/mt)([A-Za-z])", r"\1 \2", text)
-        text = re.sub(r"\bmtto\b", "mt to", text)
-        text = re.sub(r"([.,!?;:])([A-Za-z])", r"\1 \2", text)
-        # Dollar signs are NOT escaped here - they remain as-is ($560-570/mt)
-        # HTML rendering with unsafe_allow_html=True prevents KaTeX from interpreting them
-        return text.strip()
-
-    def format_for_markdown(text: str) -> str:
-        if not text:
-            return ""
-
-        paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
-        for i, p in enumerate(paragraphs):
-            paragraphs[i] = p.replace("\n", "  \n")
-        return "\n\n".join(paragraphs)
-    
-    def prepare_html_content(text: str) -> str:
-        """
-        Prepare cleaned text for HTML rendering to prevent KaTeX interpretation.
-        
-        Takes cleaned text, escapes HTML entities (preserving dollar signs),
-        converts line breaks to <br>, and wraps paragraphs in <p> tags.
-        Using unsafe_allow_html=True with this output prevents Streamlit from
-        processing dollar signs as LaTeX delimiters.
-        
-        Args:
-            text: Cleaned text with paragraphs separated by double newlines
-                  and line breaks indicated by single newlines
-        
-        Returns:
-            HTML-formatted string with proper paragraph and line break tags
-        """
-        if not text:
-            return ""
-        
-        # Split into paragraphs first (before escaping)
-        paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
-        
-        html_paragraphs = []
-        for paragraph in paragraphs:
-            # Escape HTML entities (preserving dollar signs as-is)
-            escaped = html.escape(paragraph)
-            # Convert single newlines to <br> tags
-            escaped = escaped.replace("\n", "<br>")
-            # Wrap in paragraph tags
-            html_paragraphs.append(f"<p>{escaped}</p>")
-        
-        return "".join(html_paragraphs)
 
     # ---------- LlamaCloud Document Fetching ----------
 
@@ -156,14 +59,14 @@ def render():
         """Delete a document from LlamaCloud"""
         try:
             url = f"https://api.cloud.llamaindex.ai/api/v1/pipelines/{PIPELINE_ID}/files/{file_id}"
-            
+
             headers = {
                 'Accept': 'application/json',
                 'Authorization': f'Bearer {os.getenv("LLAMA_CLOUD_API_KEY")}'
             }
-            
+
             response = requests.delete(url, headers=headers)
-            
+
             if response.status_code in [200, 204]:
                 st.success(f"Successfully deleted {file_name}")
                 return True
@@ -185,6 +88,7 @@ def render():
 
     @st.cache_resource(show_spinner=False)
     def get_index():
+        """Establish LlamaCloudIndex connection by setting up proper credentials."""
         LLAMACLOUD_API_KEY = os.getenv("LLAMA_CLOUD_API_KEY")
         LLAMACLOUD_ORG_ID = os.getenv("LLAMA_ORG_ID")
         return LlamaCloudIndex(
@@ -196,6 +100,7 @@ def render():
 
     @st.cache_resource(show_spinner=False)
     def get_llm():
+        """Set up Gemini LLM with API key from environment."""
         return Gemini(
             model="models/gemini-2.5-flash",
             api_key=os.getenv("GOOGLE_API_KEY"),
@@ -203,218 +108,34 @@ def render():
 
     @st.cache_resource(show_spinner=False)
     def get_query_engine():
+        """
+            Create and return a query engine that uses the cached index and LLM.
+
+            Returns:
+                A query engine object (index.as_query_engine) configured with the LLM.
+        """
         index = get_index()
         llm = get_llm()
         return index.as_query_engine(llm=llm)
 
     # ---------- Chat UI ----------
-    st.title("Chat Assistant")
+    st.title("Rim Documents Assistant 🤖")
     
     # Initialize session state for messages and uploaded documents
     if "messages" not in st.session_state:
-        st.session_state.messages = []
+        st.session_state.messages = []   # Here we store the chat history and is going to be retrieved on every later on
     
     # Fetch uploaded documents on first load or when not cached
     if "uploaded_documents" not in st.session_state:
         st.session_state.uploaded_documents = fetch_uploaded_documents()
     
-    # Add custom CSS for rounded containers
-    st.markdown("""
-        <style>
-        /* Reduce main app container height */
-        .stAppViewBlockContainer, .block-container, .ea3mdgi5 {
-            padding-top: 1rem !important;
-            padding-bottom: 1rem !important;
-            max-height: 85vh !important;
-        }
-        
-        .side-container {
-            background-color: #2E3B4E;
-            border-radius: 20px;
-            padding: 20px;
-            height: 70vh;
-            display: flex;
-            flex-direction: column;
-        }
-        .container-title {
-            font-size: 20px;
-            font-weight: bold;
-            text-align: center;
-            color: #FFFFFF;
-            padding-bottom: 10px;
-        }
-        .container-divider {
-            border-top: 1px solid rgba(255, 255, 255, 0.3);
-            margin-bottom: 15px;
-        }
-        .chat-list-item {
-            background-color: transparent;
-            border-radius: 8px;
-            padding: 12px;
-            margin-bottom: 10px;
-            cursor: pointer;
-            transition: background-color 0.2s;
-            color: #FFFFFF;
-        }
-        .chat-list-item:hover {
-            background-color: rgba(255, 255, 255, 0.1);
-        }
-        .data-source-item {
-            background-color: transparent;
-            border-radius: 8px;
-            padding: 10px;
-            margin-bottom: 8px;
-            font-size: 14px;
-            color: #FFFFFF;
-        }
-        .container-content {
-            flex: 1;
-            overflow-y: auto;
-        }
-        .container-bottom {
-            margin-top: auto;
-            padding-top: 10px;
-        }
-        .center-container {
-            background-color: #2E3B4E;
-            border-radius: 20px;
-            padding: 20px;
-            height: 70vh;
-            display: flex;
-            flex-direction: column;
-        }
-        .chat-messages-area {
-            flex: 1;
-            overflow-y: auto;
-            padding: 10px;
-            margin-bottom: 10px;
-        }
-        .chat-message {
-            margin-bottom: 15px;
-            color: #FFFFFF;
-        }
-        .chat-message strong {
-            color: #4DA6FF;
-        }
-        /* Style the center chat container to match side containers */
-        div[data-testid="stVerticalBlock"] > div[data-testid="stVerticalBlockBorderWrapper"] {
-            height: 70vh !important;
-        }
-        div[data-testid="stVerticalBlock"] > div[data-testid="stVerticalBlockBorderWrapper"] > div {
-            height: 100% !important;
-        }
-        </style>
-    """, unsafe_allow_html=True)
-
-    # Create two-column layout (left container commented out)
-    # left_col, center_col, right_col = st.columns([1, 2, 1])
-    center_col, right_col = st.columns([3, 1])
-    
-    # Left container - Chat Library (commented out)
-    # with left_col:
-    #     st.markdown('''
-    #     <div class="side-container">
-    #         <div class="container-title">Library</div>
-    #         <div class="container-divider"></div>
-    #         <div class="container-content">
-    #             <div class="chat-list-item">📁 Rim Documents</div>
-    #         </div>
-    #     </div>
-    #     ''', unsafe_allow_html=True)
-    
     # Right container - Data Sources
-    with right_col:
-        st.markdown('''
-        <div class="side-container">
-            <div class="container-title">Data Used</div>
-            <div class="container-divider"></div>
-            <div class="container-content">
-        ''', unsafe_allow_html=True)
-        
-        # Display documents with delete buttons in a scrollable area inside the container
-        for idx, doc in enumerate(st.session_state.uploaded_documents):
-            doc_name = doc['name'] if isinstance(doc, dict) else doc
-            doc_id = doc.get('id') if isinstance(doc, dict) else None
-            
-            col1, col2 = st.columns([3, 1])
-            with col1:
-                st.markdown(f'<div style="color: #FFFFFF; padding: 5px 0;">📄 {doc_name}</div>', unsafe_allow_html=True)
-            with col2:
-                if doc_id:
-                    if st.button("🗑️", key=f"delete_{idx}", help=f"Delete {doc_name}"):
-                        if delete_document(doc_id, doc_name):
-                            # Refresh the document list
-                            st.session_state.uploaded_documents = fetch_uploaded_documents()
-                            st.rerun()
-        
-        st.markdown('</div>', unsafe_allow_html=True)  # Close container-content
-        
-        # Button positioned at bottom of container
-        st.markdown('<div class="container-bottom">', unsafe_allow_html=True)
-        
-        # Initialize session state for uploader visibility
-        if "show_uploader" not in st.session_state:
-            st.session_state.show_uploader = False
-        
-        # Main button to show uploader
-        if st.button("Attach new Documents", use_container_width=True, type="primary", key="attach_btn"):
-            st.session_state.show_uploader = not st.session_state.show_uploader
-        
-        # File uploader (only shown when show_uploader is True)
-        if st.session_state.show_uploader:
-            st.info("Upload PDF or DOCX files")
-            new_data = st.file_uploader("Choose files", type=["pdf", "docx"], 
-                                       accept_multiple_files=True, key="file_uploader")
-            
-            if new_data:
-                if st.button("Upload to Index", key="upload_btn", type="primary", use_container_width=True):
-                    with st.spinner("Uploading files..."):
-                        uploaded_files = []
-                        for f in new_data:
-                            temp_dir = tempfile.mkdtemp()
-                            file_path = os.path.join(temp_dir, f.name)
-                            with open(file_path, "wb") as temp_file:
-                                temp_file.write(f.getbuffer())
-                            
-                            try:
-                                # Use the working upload_file method
-                                index = LlamaCloudIndex(
-                                    name="NGL_Strategy",
-                                    project_name="Default",
-                                    organization_id="44ae1ea1-e4cb-4a16-b55e-9024ef961a7c",
-                                    api_key=os.getenv("LLAMA_CLOUD_API_KEY"),
-                                    )
-                                index.upload_file(file_path=file_path)
-                                uploaded_files.append(f.name)
-                                st.success(f"Uploaded {f.name}")
-                            except Exception as e:
-                                st.error(f"Error uploading {f.name}: {str(e)}")
-                            finally:
-                                # Clean up temporary file
-                                import shutil
-                                try:
-                                    os.remove(file_path)
-                                    os.rmdir(temp_dir)
-                                except:
-                                    pass
-                        
-                        if uploaded_files:
-                            st.balloons()
-                            st.success(f"Successfully uploaded {len(uploaded_files)} file(s): {', '.join(uploaded_files)}")
-                            # Refresh the uploaded documents list
-                            st.session_state.uploaded_documents = fetch_uploaded_documents()
-                        
-                        # Reset the uploader state
-                        st.session_state.show_uploader = False
-                        st.rerun()
-        
-        st.markdown('</div></div>', unsafe_allow_html=True)  # Close container-bottom and side-container
-    
-    # Center column - Main Chat Area
-    with center_col:
-        # Create a container for the chat area - height matches 70vh (~550px)
+    cols = st.columns([3, 1])
+    chat_col, data_col = cols
+
+    with chat_col:
+        ## Chat Area
         chat_container = st.container(height=550, border=True)
-        
         with chat_container:
             def render_message(message: dict):
                 role = message.get("role", "")
@@ -423,48 +144,259 @@ def render():
 
                 if role == "user":
                     cleaned = re.sub(r"\s+", " ", content).strip()
-                    content_html = prepare_html_content(cleaned)
+                    # content_html = prepare_html_content(cleaned)
                     name = st.session_state.get("username") or "User"
-                    st.markdown(f'<strong>{html.escape(name)}:</strong> {content_html}', unsafe_allow_html=True)
+                    st.markdown(f'<strong>{html.escape(name)}:</strong> {cleaned}', unsafe_allow_html=True)
 
                 elif role == "assistant":
                     name = "Bot"
-                    with st.expander("🐛 Debug: View Raw Response", expanded=False):
-                        st.code(content, language="text")
-                    cleaned = clean_llm_response(content)
-                    content_html = prepare_html_content(cleaned)
-                    st.markdown(f'<strong>{html.escape(name)}:</strong> {content_html}', unsafe_allow_html=True)
-                    
-                    # Display sources if available
+                    # with st.expander("🐛 Debug: View Raw Response", expanded=False):
+                    #     st.code(content, language="text")
+                    # cleaned = clean_llm_response(content)
+                    # content_html = prepare_html_content(cleaned)
+                    st.markdown(f'<strong>{html.escape(name)}:</strong> {content}', unsafe_allow_html=True)
+
                     if sources:
                         with st.expander("📚 Sources Used", expanded=False):
                             for idx, source in enumerate(sources, 1):
                                 st.markdown(f"**Source {idx}:** {source.get('file_name', 'Unknown')}")
                                 if source.get('text'):
                                     text = source['text']
-                                    preview = f"_{text[:MAX_SOURCE_TEXT_LENGTH]}..._" if len(text) > MAX_SOURCE_TEXT_LENGTH else f"_{text}_"
+                                    preview = f"_{text[:MAX_SOURCE_TEXT_LENGTH]}..._" if len(
+                                        text) > MAX_SOURCE_TEXT_LENGTH else f"_{text}_"
                                     st.markdown(preview)
                                 st.markdown("---")
 
                 else:
                     cleaned = re.sub(r"\s+", " ", content).strip()
-                    content_html = prepare_html_content(cleaned)
+                    # content_html = prepare_html_content(cleaned)
                     name = role.capitalize() or "User"
-                    st.markdown(f'<strong>{html.escape(name)}:</strong> {content_html}', unsafe_allow_html=True)
+                    st.markdown(f'<strong>{html.escape(name)}:</strong> {cleaned}', unsafe_allow_html=True)
 
             for msg in st.session_state.messages:
                 render_message(msg)
-        
-        # Chat input at the bottom
-        prompt = st.chat_input(
-            "Ask a question about NGL Strategy...", key="chat_input"
-        )
-        
-        # Clear chat button
+
+        prompt = st.chat_input("Ask a question about NGL Strategy...", key="chat_input")
+
         if st.session_state.messages:
             if st.button("Clear Chat History", type="secondary", use_container_width=True):
                 st.session_state.messages = []
                 st.rerun()
+
+    with data_col:
+        ## Uploaded Documents
+        st.subheader("Data Used")
+
+        if 'uploaded_documents' not in st.session_state:
+            st.session_state.uploaded_documents = fetch_uploaded_documents()
+
+        for idx, doc in enumerate(st.session_state.uploaded_documents):
+            doc_name = doc['name'] if isinstance(doc, dict) else doc
+            doc_id = doc.get('id') if isinstance(doc, dict) else None
+
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.write(f"📄 {doc_name}")
+            with col2:
+                if doc_id:
+                    if st.button("🗑️", key=f"delete_{idx}", help=f"Delete {doc_name}"):
+                        if delete_document(doc_id, doc_name):
+                            st.session_state.uploaded_documents = fetch_uploaded_documents()
+                            st.rerun()
+
+        ## Document Uploader
+        if "show_uploader" not in st.session_state:
+            st.session_state.show_uploader = False
+
+        if st.button("Attach new Documents", use_container_width=True, type="primary", key="attach_btn"):
+            st.session_state.show_uploader = not st.session_state.show_uploader
+
+        if st.session_state.show_uploader:
+            st.info("Upload PDF or DOCX files")
+            new_data = st.file_uploader("Choose files", type=["pdf", "docx"], accept_multiple_files=True,
+                                        key="file_uploader")
+
+            if new_data and st.button("Upload to Index", key="upload_btn", type="primary",
+                                      use_container_width=True):
+                with st.spinner("Uploading files..."):
+                    uploaded_files = []
+                    for f in new_data:
+                        temp_dir = tempfile.mkdtemp()
+                        file_path = os.path.join(temp_dir, f.name)
+                        with open(file_path, "wb") as temp_file:
+                            temp_file.write(f.getbuffer())
+
+                        try:
+                            index = LlamaCloudIndex(
+                                name="NGL_Strategy",
+                                project_name="Default",
+                                organization_id="44ae1ea1-e4cb-4a16-b55e-9024ef961a7c",
+                                api_key=os.getenv("LLAMA_CLOUD_API_KEY"),
+                            )
+                            index.upload_file(file_path=file_path)
+                            uploaded_files.append(f.name)
+                            st.success(f"Uploaded {f.name}")
+                        except Exception as e:
+                            st.error(f"Error uploading {f.name}: {str(e)}")
+                        finally:
+                            try:
+                                os.remove(file_path)
+                                os.rmdir(temp_dir)
+                            except:
+                                pass
+
+                    if uploaded_files:
+                        st.balloons()
+                        st.success(
+                            f"Successfully uploaded {len(uploaded_files)} file(s): {', '.join(uploaded_files)}")
+                        st.session_state.uploaded_documents = fetch_uploaded_documents()
+
+                    st.session_state.show_uploader = False
+                    st.rerun()
+
+
+
+        # with right_col:
+        #     st.markdown('''
+        #     <div class="side-container">
+        #         <div class="container-title">Data Used</div>
+        #         <div class="container-divider">
+        #         </div>
+        #         <div class="container-content">''', unsafe_allow_html=True)
+        #
+        #     # Display documents with delete buttons in a scrollable area inside the container
+        #     for idx, doc in enumerate(st.session_state.uploaded_documents):
+        #         doc_name = doc['name'] if isinstance(doc, dict) else doc
+        #         doc_id = doc.get('id') if isinstance(doc, dict) else None
+        #
+        #         col1, col2 = st.columns([3, 1])
+        #         with col1:
+        #             st.markdown(f'<div style="color: #FFFFFF; padding: 5px 0;">📄 {doc_name}</div>', unsafe_allow_html=True)
+        #         with col2:
+        #             if doc_id:
+        #                 if st.button("🗑️", key=f"delete_{idx}", help=f"Delete {doc_name}"):
+        #                     if delete_document(doc_id, doc_name):
+        #                         # Refresh the document list
+        #                         st.session_state.uploaded_documents = fetch_uploaded_documents()
+        #                         st.rerun()
+        #
+        #     st.markdown('</div>', unsafe_allow_html=True)  # Close container-content
+        #
+        #     # Button positioned at bottom of container
+        #     st.markdown('<div class="container-bottom">', unsafe_allow_html=True)
+        #
+        #     # Initialize session state for uploader visibility
+        #     if "show_uploader" not in st.session_state:
+        #         st.session_state.show_uploader = False
+        #
+        #     # Main button to show uploader
+        #     if st.button("Attach new Documents", use_container_width=True, type="primary", key="attach_btn"):
+        #         st.session_state.show_uploader = not st.session_state.show_uploader
+        #
+        #     # File uploader (only shown when show_uploader is True)
+        #     if st.session_state.show_uploader:
+        #         st.info("Upload PDF or DOCX files")
+        #         new_data = st.file_uploader("Choose files", type=["pdf", "docx"],
+        #                                    accept_multiple_files=True, key="file_uploader")
+        #
+        #         if new_data:
+        #             if st.button("Upload to Index", key="upload_btn", type="primary", use_container_width=True):
+        #                 with st.spinner("Uploading files..."):
+        #                     uploaded_files = []
+        #                     for f in new_data:
+        #                         temp_dir = tempfile.mkdtemp()
+        #                         file_path = os.path.join(temp_dir, f.name)
+        #                         with open(file_path, "wb") as temp_file:
+        #                             temp_file.write(f.getbuffer())
+        #
+        #                         try:
+        #                             # Use the working upload_file method
+        #                             index = LlamaCloudIndex(
+        #                                 name="NGL_Strategy",
+        #                                 project_name="Default",
+        #                                 organization_id="44ae1ea1-e4cb-4a16-b55e-9024ef961a7c",
+        #                                 api_key=os.getenv("LLAMA_CLOUD_API_KEY"),
+        #                                 )
+        #                             index.upload_file(file_path=file_path)
+        #                             uploaded_files.append(f.name)
+        #                             st.success(f"Uploaded {f.name}")
+        #                         except Exception as e:
+        #                             st.error(f"Error uploading {f.name}: {str(e)}")
+        #                         finally:
+        #                             # Clean up temporary file
+        #                             import shutil
+        #                             try:
+        #                                 os.remove(file_path)
+        #                                 os.rmdir(temp_dir)
+        #                             except:
+        #                                 pass
+        #
+        #                     if uploaded_files:
+        #                         st.balloons()
+        #                         st.success(f"Successfully uploaded {len(uploaded_files)} file(s): {', '.join(uploaded_files)}")
+        #                         # Refresh the uploaded documents list
+        #                         st.session_state.uploaded_documents = fetch_uploaded_documents()
+        #
+        #                     # Reset the uploader state
+        #                     st.session_state.show_uploader = False
+        #                     st.rerun()
+        #
+        #     st.markdown('</div></div>', unsafe_allow_html=True)  # Close container-bottom and side-container
+
+        # with left_col:
+        #     # Create a container for the chat area - height matches 70vh (~550px)
+        #     chat_container = st.container(height=550, border=True)
+        #
+        #     with chat_container:
+        #         def render_message(message: dict):
+        #             role = message.get("role", "")
+        #             content = message.get("content", "") or ""
+        #             sources = message.get("sources", [])
+        #
+        #             if role == "user":
+        #                 cleaned = re.sub(r"\s+", " ", content).strip()
+        #                 content_html = prepare_html_content(cleaned)
+        #                 name = st.session_state.get("username") or "User"
+        #                 st.markdown(f'<strong>{html.escape(name)}:</strong> {content_html}', unsafe_allow_html=True)
+        #
+        #             elif role == "assistant":
+        #                 name = "Bot"
+        #                 with st.expander("🐛 Debug: View Raw Response", expanded=False):
+        #                     st.code(content, language="text")
+        #                 cleaned = clean_llm_response(content)
+        #                 content_html = prepare_html_content(cleaned)
+        #                 st.markdown(f'<strong>{html.escape(name)}:</strong> {content_html}', unsafe_allow_html=True)
+        #
+        #                 # Display sources if available
+        #                 if sources:
+        #                     with st.expander("📚 Sources Used", expanded=False):
+        #                         for idx, source in enumerate(sources, 1):
+        #                             st.markdown(f"**Source {idx}:** {source.get('file_name', 'Unknown')}")
+        #                             if source.get('text'):
+        #                                 text = source['text']
+        #                                 preview = f"_{text[:MAX_SOURCE_TEXT_LENGTH]}..._" if len(text) > MAX_SOURCE_TEXT_LENGTH else f"_{text}_"
+        #                                 st.markdown(preview)
+        #                             st.markdown("---")
+        #
+        #             else:
+        #                 cleaned = re.sub(r"\s+", " ", content).strip()
+        #                 content_html = prepare_html_content(cleaned)
+        #                 name = role.capitalize() or "User"
+        #                 st.markdown(f'<strong>{html.escape(name)}:</strong> {content_html}', unsafe_allow_html=True)
+        #
+        #         for msg in st.session_state.messages:
+        #             render_message(msg)
+        #
+        #     # Chat input at the bottom
+        #     prompt = st.chat_input(
+        #         "Ask a question about NGL Strategy...", key="chat_input"
+        #     )
+        #
+        #     # Clear chat button
+        #     if st.session_state.messages:
+        #         if st.button("Clear Chat History", type="secondary", use_container_width=True):
+        #             st.session_state.messages = []
+        #             st.rerun()
 
     if prompt:
         user_msg = {"role": "user", "content": prompt}
@@ -482,7 +414,7 @@ def render():
                 else:
                     response_text = str(response)
 
-                cleaned_response = clean_llm_response(response_text)
+                cleaned_response = response_text
                 
                 # Extract source information
                 sources = []

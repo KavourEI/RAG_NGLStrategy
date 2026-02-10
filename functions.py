@@ -20,29 +20,53 @@ load_dotenv()
 
 # ---------- Configuration ----------
 
+def get_secret(key, default=None):
+    """
+    Get secret from Streamlit secrets (production) or environment variables (local).
+    
+    This hybrid approach allows the code to work seamlessly in both:
+    - Production (Streamlit Cloud): Uses st.secrets
+    - Local development: Uses .env files and os.getenv()
+    
+    Args:
+        key (str): The secret key name
+        default: Default value if key not found
+    
+    Returns:
+        The secret value or default
+    """
+    try:
+        # Try Streamlit secrets first (for deployed apps)
+        import streamlit as st
+        return st.secrets.get(key, default)
+    except (ImportError, FileNotFoundError, KeyError, AttributeError):
+        # Fall back to environment variables (for local development)
+        return os.getenv(key, default)
+
+
 def get_pipeline_id():
     """
-    Get the pipeline ID from environment variables.
+    Get the pipeline ID from Streamlit secrets or environment variables.
     
     Checks LLAMA_PIPELINE_ID first, then falls back to LLAMA_NGL_PIPELINE_ID.
     Returns None if neither is set - callers should handle this case.
     """
-    return os.getenv("LLAMA_PIPELINE_ID") or os.getenv("LLAMA_NGL_PIPELINE_ID")
+    return get_secret("LLAMA_PIPELINE_ID") or get_secret("LLAMA_NGL_PIPELINE_ID")
 
 
 def get_api_key():
-    """Get the LlamaCloud API key from environment variables."""
-    return os.getenv("LLAMA_CLOUD_API_KEY")
+    """Get the LlamaCloud API key from Streamlit secrets or environment variables."""
+    return get_secret("LLAMA_CLOUD_API_KEY")
 
 
 def get_org_id():
-    """Get the organization ID from environment variables."""
-    return os.getenv("LLAMA_ORG_ID")
+    """Get the organization ID from Streamlit secrets or environment variables."""
+    return get_secret("LLAMA_ORG_ID")
 
 
 def get_base_url():
     """Get the base URL for LlamaCloud API."""
-    return os.getenv("LLAMA_BASE_URL", "https://api.cloud.llamaindex.ai/api/v1")
+    return get_secret("LLAMA_BASE_URL", "https://api.cloud.llamaindex.ai/api/v1")
 
 
 # ---------- LlamaCloud Document Management ----------
@@ -178,8 +202,8 @@ def upload_file_to_index(file_path, name=None, project_name=None, org_id=None, a
     # Lazy import to avoid loading LlamaIndex when not needed
     from llama_index.indices.managed.llama_cloud import LlamaCloudIndex
     
-    name = name or os.getenv("LLAMA_INDEX_NAME", "NGL_Strategy")
-    project_name = project_name or os.getenv("LLAMA_PROJECT_NAME", "Default")
+    name = name or get_secret("LLAMA_INDEX_NAME", "NGL_Strategy")
+    project_name = project_name or get_secret("LLAMA_PROJECT_NAME", "Default")
     org_id = org_id or get_org_id()
     api_key = api_key or get_api_key()
     
@@ -287,8 +311,8 @@ def create_llama_cloud_index(name=None, project_name=None, org_id=None, api_key=
     """
     from llama_index.indices.managed.llama_cloud import LlamaCloudIndex
     
-    name = name or os.getenv("LLAMA_INDEX_NAME", "NGL_Strategy")
-    project_name = project_name or os.getenv("LLAMA_PROJECT_NAME", "Default")
+    name = name or get_secret("LLAMA_INDEX_NAME", "NGL_Strategy")
+    project_name = project_name or get_secret("LLAMA_PROJECT_NAME", "Default")
     org_id = org_id or get_org_id()
     api_key = api_key or get_api_key()
     
@@ -314,13 +338,15 @@ def create_gemini_llm(model=None, api_key=None):
     from llama_index.llms.gemini import Gemini
     
     model = model or "models/gemini-2.5-flash"
-    api_key = api_key or os.getenv("GOOGLE_API_KEY")
+    api_key = api_key or get_secret("GOOGLE_API_KEY")
     
     return Gemini(
         model=model,
         api_key=api_key,
     )
 
+
+# ---------- LlamaIndex Resources ----------
 
 def create_query_engine(index=None, llm=None):
     """

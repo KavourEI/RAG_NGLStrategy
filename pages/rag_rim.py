@@ -113,7 +113,8 @@ def render():
 
                 elif role == "assistant":
                     name = "Bot"
-                    st.markdown(f'<strong>{html.escape(name)}:</strong> {content}', unsafe_allow_html=True)
+                    # st.markdown(f'<strong>{html.escape(name)}:</strong> {content}', unsafe_allow_html=True)
+                    st.write(f"**{name}:** {content}")
 
                     if sources:
                         with st.expander("📚 Sources Used", expanded=False):

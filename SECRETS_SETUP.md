@@ -33,7 +33,7 @@ LLAMA_CLOUD_API_KEY = "your_actual_api_key_here"
 LLAMA_ORG_ID = "your_org_id_here"
 OLLAMA_API_KEY = "your_ollama_cloud_api_key_here"
 # Optional: Uncomment and set if using a custom pipeline
-# LLAMA_PIPELINE_ID = "your_pipeline_id_here"
+# LLAMA_NGL_PIPELINE_ID = "your_pipeline_id_here"
 ```
 
 **Important:** 

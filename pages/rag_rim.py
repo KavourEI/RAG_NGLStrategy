@@ -14,6 +14,7 @@ from functions import (
     fetch_uploaded_documents,
     delete_document,
     upload_files_batch,
+    upload_file_to_index,
     create_llama_cloud_index,
     create_gemini_llm,
     create_query_engine,
@@ -48,7 +49,7 @@ def render():
         return create_query_engine(index=index, llm=llm)
     
     # ---------- Helper Functions for Document Management ----------
-    
+
     def fetch_documents_with_error_handling():
         """Fetch documents with Streamlit error handling."""
         try:
@@ -56,7 +57,7 @@ def render():
         except Exception as e:
             st.error(f"Error fetching documents: {str(e)}")
             return [{'name': 'current.pdf', 'id': None}]  # Fallback
-    
+
     def handle_delete_document(file_id, file_name):
         """Handle document deletion with Streamlit UI feedback."""
         result = delete_document(file_id, file_name)
@@ -70,6 +71,7 @@ def render():
     def handle_upload_files(files):
         """Handle file upload with Streamlit UI feedback."""
         result = upload_files_batch(files)
+        # result = upload_file_to_index(files)
         
         # Show success messages
         for file_name in result['success_files']:

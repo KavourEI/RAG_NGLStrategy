@@ -51,137 +51,187 @@ def get_pipeline_id():
     Checks LLAMA_PIPELINE_ID first, then falls back to LLAMA_NGL_PIPELINE_ID.
     Returns None if neither is set - callers should handle this case.
     """
-    return get_secret("LLAMA_PIPELINE_ID") or get_secret("LLAMA_NGL_PIPELINE_ID")
+    return get_secret("LLAMA_NGL_PIPELINE_ID")
+    # return os.getenv("LLAMA_NGL_PIPELINE_ID")
 
 
 def get_api_key():
     """Get the LlamaCloud API key from Streamlit secrets or environment variables."""
     return get_secret("LLAMA_CLOUD_API_KEY")
+    # return os.getenv("LLAMA_CLOUD_API_KEY")
 
 
 def get_org_id():
     """Get the organization ID from Streamlit secrets or environment variables."""
     return get_secret("LLAMA_ORG_ID")
+    # return os.getenv("LLAMA_ORG_ID")
 
 
 def get_base_url():
     """Get the base URL for LlamaCloud API."""
     return get_secret("LLAMA_BASE_URL", "https://api.cloud.llamaindex.ai/api/v1")
+    # return os.getenv("LLAMA_BASE_URL")
 
 
 # ---------- LlamaCloud Document Management ----------
 
-def fetch_uploaded_documents(pipeline_id=None, api_key=None, base_url=None):
+def fetch_uploaded_documents(
+        pipeline_id=None,
+        api_key=None,
+        base_url=None,
+        force_refresh=False):
     """
     Fetch list of uploaded documents from LlamaCloud API.
-    
+
     Args:
         pipeline_id (str): The ID of the pipeline. Defaults to env var.
         api_key (str): Your Llama Cloud API key. Defaults to env var.
         base_url (str): Base URL for the API. Defaults to env var.
-    
+        force_refresh (bool): Force refresh from API, bypassing any cache.
+
     Returns:
         list: List of dictionaries with 'name' and 'id' keys for each file.
-              Returns fallback list on error.
+              'id' should be the file_id, not the pipeline_file_id.
     """
     pipeline_id = pipeline_id or get_pipeline_id()
     api_key = api_key or get_api_key()
     base_url = base_url or get_base_url()
-    
+
     if not pipeline_id or not api_key:
-        return [{'name': 'current.pdf', 'id': None}]  # Fallback
-    
+        return []  # Return empty list instead of fallback
+
     try:
         url = f"{base_url}/pipelines/{pipeline_id}/files2"
-        
+
         headers = {
             'Accept': 'application/json',
-            'Authorization': f'Bearer {api_key}'
+            'Authorization': f'Bearer {api_key}',
+            'Cache-Control': 'no-cache' if force_refresh else 'max-age=0'
         }
-        
+
         response = requests.get(url, headers=headers, timeout=30)
-        
+
         if response.status_code == 200:
             data = response.json()
             files = data.get('files', [])
-            return [{'name': file.get('name', 'Unknown'), 'id': file.get('id')} for file in files]
+
+            # IMPORTANT FIX: Return file_id (not pipeline_file_id or id)
+            # Based on your metadata, the correct field is 'file_id'
+            result = []
+            for file in files:
+                # Try to get the correct file_id from the response
+                # You might need to check the actual API response structure
+                file_id = file.get('file_id') or file.get('id')
+                result.append({
+                    'name': file.get('name', 'Unknown'),
+                    'id': file_id  # This should be 'cf0708d0-...' not '2626fd6e-...'
+                })
+            return result
         else:
             try:
                 error_detail = response.json()
             except json.JSONDecodeError:
                 error_detail = response.text
-            raise requests.RequestException(f"Failed to fetch documents (status {response.status_code}): {error_detail}")
+            raise requests.RequestException(
+                f"Failed to fetch documents (status {response.status_code}): {error_detail}")
     except requests.RequestException:
         raise
     except Exception as e:
         raise Exception(f"Unexpected error fetching documents: {str(e)}")
 
 
-def delete_document(file_id, file_name=None, pipeline_id=None, api_key=None, base_url=None):
+def delete_document(
+        file_id,
+        file_name=None,
+        index_name=None,
+        project_name=None,
+        org_id=None,
+        api_key=None,
+        delete_from_docstore=True
+):
     """
-    Delete a document from LlamaCloud.
-    
+    Delete a document from LlamaCloud using LlamaCloudIndex.
+
     Args:
-        file_id (str): The ID of the file to delete. Required.
+        file_id (str): The file_id (from metadata) of the document to delete. Required.
         file_name (str): The name of the file (for logging). Optional.
-        pipeline_id (str): The ID of the pipeline. Defaults to env var.
-        api_key (str): Your Llama Cloud API key. Defaults to env var.
-        base_url (str): Base URL for the API. Defaults to env var.
-    
+        index_name (str): Name of the index. Defaults to LLAMA_INDEX_NAME env var.
+        project_name (str): Name of the project. Defaults to LLAMA_PROJECT_NAME env var.
+        org_id (str): Organization ID. Defaults to LLAMA_ORG_ID env var.
+        api_key (str): Your Llama Cloud API key. Defaults to LLAMA_CLOUD_API_KEY env var.
+        delete_from_docstore (bool): Whether to delete from document store. Defaults to True.
+
     Returns:
         dict: Result dictionary with 'success' and optional 'message' keys.
-    
+
     Raises:
-        ValueError: If file_id is not provided.
-        requests.RequestException: If the HTTP request fails.
+        ValueError: If file_id is not provided or required parameters missing.
     """
+    from llama_index.indices.managed.llama_cloud import LlamaCloudIndex
+
     if not file_id:
-        raise ValueError("File ID is required to delete a file!")
-    
-    pipeline_id = pipeline_id or get_pipeline_id()
+        raise ValueError("File ID is required to delete a document!")
+
+    # Get configuration
+    index_name = index_name or get_secret("LLAMA_INDEX_NAME")
+    project_name = project_name or get_secret("LLAMA_PROJECT_NAME", "Default")
+    org_id = org_id or get_org_id()
     api_key = api_key or get_api_key()
-    base_url = base_url or get_base_url()
-    
-    if not pipeline_id or not api_key:
-        raise ValueError("Pipeline ID and API key are required")
-    
+
+    if not all([index_name, project_name, org_id, api_key]):
+        raise ValueError(
+            "Index name, project name, organization ID, and API key are required. "
+            "Please provide them as arguments or set the corresponding environment variables."
+        )
+
     try:
-        url = f"{base_url}/pipelines/{pipeline_id}/files/{file_id}"
-        
-        headers = {
-            'Accept': 'application/json',
-            'Authorization': f'Bearer {api_key}'
-        }
-        
-        response = requests.delete(url, headers=headers, timeout=30)
-        
-        if response.status_code in [200, 204]:
-            return {
-                'success': True,
-                'message': f"Successfully deleted {file_name or file_id}"
-            }
-        else:
-            try:
-                error_detail = response.json()
-            except json.JSONDecodeError:
-                error_detail = response.text
+        # Initialize the index
+        index = LlamaCloudIndex(
+            name=index_name,
+            project_name=project_name,
+            organization_id=org_id,
+            api_key=api_key,
+        )
+
+        # Get all reference documents
+        all_docs = index.ref_doc_info
+
+        # Find the document with matching file_id in metadata
+        document_id_to_delete = None
+        for doc_key, doc_info in all_docs.items():
+            if doc_info.metadata and doc_info.metadata.get('file_id') == file_id:
+                document_id_to_delete = doc_key
+                break
+
+        if not document_id_to_delete:
             return {
                 'success': False,
-                'message': f"Failed to delete {file_name or file_id} (status {response.status_code}): {error_detail}"
+                'message': f"Document with file_id '{file_id}' not found in index"
             }
-    except requests.RequestException as e:
+
+        # Delete the document
+        index.delete_ref_doc(
+            document_id_to_delete,
+            delete_from_docstore=delete_from_docstore
+        )
+
         return {
-            'success': False,
-            'message': f"Network error deleting {file_name or file_id}: {str(e)}"
+            'success': True,
+            'message': f"Successfully deleted {file_name or file_id} (document_id: {document_id_to_delete})"
         }
+
     except Exception as e:
         return {
             'success': False,
-            'message': f"Unexpected error deleting {file_name or file_id}: {str(e)}"
+            'message': f"Error deleting {file_name or file_id}: {str(e)}"
         }
 
-
-def upload_file_to_index(file_path, name=None, project_name=None, org_id=None, api_key=None):
+def upload_file_to_index(
+        file_path, 
+        name=None,
+        project_name=None,
+        org_id=None,
+        api_key=None):
     """
     Upload a file to a LlamaIndex Cloud index.
     
@@ -237,7 +287,12 @@ def upload_file_to_index(file_path, name=None, project_name=None, org_id=None, a
         }
 
 
-def upload_files_batch(uploaded_files, name=None, project_name=None, org_id=None, api_key=None):
+def upload_files_batch(
+        uploaded_files, 
+        name=None,
+        project_name=None,
+        org_id=None,
+        api_key=None):
     """
     Upload multiple files to a LlamaIndex Cloud index.
     

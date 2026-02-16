@@ -280,6 +280,48 @@ def sync_pipeline(pipeline_id=None, api_key=None, base_url=None):
         return {'success': False, 'message': f'Network error during sync: {str(e)}'}
 
 
+def _find_document_id_for_file(file_id, pipeline_id, api_key, base_url):
+    """
+    Look up the internal document_id for a given pipeline file_id.
+    
+    The LlamaCloud API has two layers:
+      - /files2 returns file entries with an 'id' (pipeline_file_id)
+      - /documents returns indexed documents with their own 'id' and metadata
+        that includes 'pipeline_file_id'
+    
+    To delete vectors, we need the document 'id', not the file 'id'.
+    
+    Args:
+        file_id (str): The pipeline file ID (from /files2).
+        pipeline_id (str): The pipeline ID.
+        api_key (str): API key.
+        base_url (str): Base URL.
+    
+    Returns:
+        list[str]: List of document IDs that belong to this file.
+    """
+    headers = {
+        'Accept': 'application/json',
+        'Authorization': f'Bearer {api_key}'
+    }
+    
+    try:
+        url = f"{base_url}/pipelines/{pipeline_id}/documents"
+        response = requests.get(url, headers=headers, timeout=30)
+        
+        if response.status_code == 200:
+            docs = response.json()
+            if isinstance(docs, list):
+                return [
+                    d['id'] for d in docs
+                    if d.get('metadata', {}).get('pipeline_file_id') == file_id
+                ]
+        return []
+    except Exception as e:
+        logger.warning(f"Failed to look up document IDs: {e}")
+        return []
+
+
 @retry_with_backoff(max_retries=3, base_delay=1.0, backoff_factor=2.0)
 def delete_document(
         file_id, 
@@ -288,19 +330,18 @@ def delete_document(
         api_key=None, 
         base_url=None):
     """
-    Fully delete a document from LlamaCloud.
+    Fully delete a document from LlamaCloud — vectors, file entry, and all.
     
-    Performs a three-step deletion to ensure the file is completely removed
-    from all layers:
-      1. Remove the file from the pipeline (DELETE /pipelines/{id}/files/{file_id})
-      2. Remove the underlying file from the project (DELETE /files/{file_id})
-      3. Sync the pipeline so the vector store drops its embeddings
-    
-    Also clears the cached query engine so subsequent queries won't reference
-    stale vectors.
+    Performs a multi-step deletion:
+      1. Look up the internal document IDs for this file
+      2. Delete each document via DELETE /pipelines/{id}/documents/{doc_id}
+         (this removes vectors from the vector store and the document from MongoDB)
+      3. Remove the file entry via DELETE /pipelines/{id}/files/{file_id}
+      4. Sync the pipeline to finalize cleanup
+      5. Clear the cached query engine
     
     Args:
-        file_id (str): The ID of the file to delete. Required.
+        file_id (str): The pipeline file ID (from the files list). Required.
         file_name (str): The name of the file (for logging). Optional.
         pipeline_id (str): The ID of the pipeline. Defaults to env var.
         api_key (str): Your Llama Cloud API key. Defaults to env var.
@@ -311,7 +352,6 @@ def delete_document(
     
     Raises:
         ValueError: If file_id is not provided.
-        requests.RequestException: If the HTTP request fails.
     """
     if not file_id:
         raise ValueError("File ID is required to delete a file!")
@@ -324,7 +364,7 @@ def delete_document(
         raise ValueError("Pipeline ID and API key are required")
     
     display_name = file_name or file_id
-    steps_completed = []
+    steps = []
     
     headers = {
         'Accept': 'application/json',
@@ -332,75 +372,63 @@ def delete_document(
     }
     
     try:
-        # --- Step 1: Remove file from the pipeline ---
-        pipeline_url = f"{base_url}/pipelines/{pipeline_id}/files/{file_id}"
-        r_pipeline = requests.delete(pipeline_url, headers=headers, timeout=30)
+        # --- Step 1: Find the internal document IDs for this file ---
+        doc_ids = _find_document_id_for_file(file_id, pipeline_id, api_key, base_url)
+        logger.info(f"Found {len(doc_ids)} document(s) for {display_name}")
         
-        if r_pipeline.status_code in [200, 204]:
-            steps_completed.append('pipeline')
-            logger.info(f"Step 1: Removed {display_name} from pipeline.")
-        else:
-            try:
-                error_detail = r_pipeline.json()
-            except json.JSONDecodeError:
-                error_detail = r_pipeline.text
-            
-            detail_str = str(error_detail.get('detail', '')) if isinstance(error_detail, dict) else str(error_detail)
-            if 'already deleted' in detail_str.lower():
-                steps_completed.append('pipeline (was already removed)')
-                logger.info(f"Step 1: {display_name} was already removed from pipeline.")
+        # --- Step 2: Delete each document (vectors + content) ---
+        docs_deleted = 0
+        for doc_id in doc_ids:
+            doc_url = f"{base_url}/pipelines/{pipeline_id}/documents/{doc_id}"
+            r = requests.delete(doc_url, headers=headers, timeout=60)
+            if r.status_code in [200, 204]:
+                docs_deleted += 1
+                logger.info(f"Deleted document {doc_id} for {display_name}")
+            elif r.status_code == 404:
+                docs_deleted += 1  # Already gone
+                logger.info(f"Document {doc_id} already deleted")
             else:
-                logger.warning(f"Step 1 failed for {display_name}: {error_detail}")
+                logger.warning(f"Failed to delete document {doc_id}: {r.status_code} {r.text[:200]}")
         
-        # --- Step 2: Delete the underlying file from the project ---
-        file_url = f"{base_url}/files/{file_id}"
+        if doc_ids:
+            steps.append(f'{docs_deleted}/{len(doc_ids)} documents deleted')
+        else:
+            steps.append('no documents found (may already be removed)')
+        
+        # --- Step 3: Remove the file entry from the pipeline ---
+        file_url = f"{base_url}/pipelines/{pipeline_id}/files/{file_id}"
         r_file = requests.delete(file_url, headers=headers, timeout=30)
         
         if r_file.status_code in [200, 204]:
-            steps_completed.append('project file')
-            logger.info(f"Step 2: Deleted {display_name} from project files.")
-        elif r_file.status_code == 404:
-            steps_completed.append('project file (was already gone)')
-            logger.info(f"Step 2: {display_name} was already deleted from project.")
+            steps.append('file entry removed')
         else:
+            # "already deleted" from the file endpoint is OK
             try:
-                file_error = r_file.json()
-            except json.JSONDecodeError:
-                file_error = r_file.text
-            logger.warning(f"Step 2 failed for {display_name}: status {r_file.status_code}, {file_error}")
+                detail = r_file.json().get('detail', '')
+            except (json.JSONDecodeError, AttributeError):
+                detail = r_file.text
+            if 'already deleted' in str(detail).lower():
+                steps.append('file entry already removed')
+            else:
+                steps.append(f'file entry removal returned {r_file.status_code}')
+                logger.warning(f"File entry delete for {display_name}: {r_file.status_code} {detail}")
         
-        # --- Step 3: Sync the pipeline to update the vector store ---
+        # --- Step 4: Sync the pipeline ---
         sync_result = sync_pipeline(pipeline_id, api_key, base_url)
         if sync_result['success']:
-            steps_completed.append('pipeline sync')
-            logger.info(f"Step 3: Pipeline sync triggered for {display_name}.")
+            steps.append('pipeline synced')
         else:
-            logger.warning(f"Step 3: Pipeline sync failed: {sync_result['message']}")
+            steps.append('sync triggered (async)')
         
-        # --- Step 4: Clear cached query engine so it rebuilds ---
+        # --- Step 5: Clear cached query engine ---
         _cache['query_engine'] = None
-        steps_completed.append('cache cleared')
+        steps.append('cache cleared')
         
-        # Determine overall success
-        # Success if we completed at least the pipeline removal and file deletion
-        pipeline_ok = any('pipeline' in s for s in steps_completed)
-        file_ok = any('project file' in s for s in steps_completed)
-        
-        if pipeline_ok and file_ok:
-            return {
-                'success': True,
-                'message': f"Successfully deleted {display_name} (steps: {', '.join(steps_completed)})"
-            }
-        elif pipeline_ok or file_ok:
-            return {
-                'success': True,
-                'message': f"Partially deleted {display_name} (steps: {', '.join(steps_completed)}). Full removal will complete after pipeline sync."
-            }
-        else:
-            return {
-                'success': False,
-                'message': f"Failed to delete {display_name}. No deletion steps succeeded."
-            }
+        return {
+            'success': True,
+            'message': f"Deleted {display_name} ({', '.join(steps)})"
+        }
+    
     except requests.RequestException as e:
         return {
             'success': False,

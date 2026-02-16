@@ -67,6 +67,11 @@ def render():
         if result['success']:
             st.success(result['message'])
             
+            # Track deleted file IDs so stale /files2 entries are hidden
+            if "deleted_file_ids" not in st.session_state:
+                st.session_state.deleted_file_ids = set()
+            st.session_state.deleted_file_ids.add(file_id)
+            
             # Clear cached query engine so it rebuilds without this doc
             clear_cache()
             
@@ -179,7 +184,14 @@ def render():
             st.session_state.uploaded_documents = fetch_documents_with_error_handling()
 
         # Display document list with delete buttons
-        for idx, doc in enumerate(st.session_state.uploaded_documents):
+        # Filter out stale entries for files we already deleted this session
+        deleted_ids = st.session_state.get("deleted_file_ids", set())
+        visible_docs = [
+            doc for doc in st.session_state.uploaded_documents
+            if (doc.get('id') if isinstance(doc, dict) else None) not in deleted_ids
+        ]
+        
+        for idx, doc in enumerate(visible_docs):
             doc_name = doc['name'] if isinstance(doc, dict) else doc
             doc_id = doc.get('id') if isinstance(doc, dict) else None
 

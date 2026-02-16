@@ -62,10 +62,29 @@ def render():
             return [{'name': 'current.pdf', 'id': None}]  # Fallback
 
     def handle_delete_document(file_id, file_name):
-        """Handle document deletion with Streamlit UI feedback."""
+        """Handle document deletion with full cleanup: API, cache, chat history."""
         result = delete_document(file_id, file_name)
         if result['success']:
             st.success(result['message'])
+            
+            # Clear cached query engine so it rebuilds without this doc
+            clear_cache()
+            
+            # Also clear st.cache_resource so get_query_engine() is re-created
+            st.cache_resource.clear()
+            
+            # Purge chat messages that referenced this file
+            if "messages" in st.session_state and file_name:
+                cleaned_messages = []
+                for msg in st.session_state.messages:
+                    sources = msg.get("sources", [])
+                    if sources:
+                        # Remove sources from this deleted file
+                        filtered = [s for s in sources if s.get('file_name') != file_name]
+                        msg = {**msg, 'sources': filtered}
+                    cleaned_messages.append(msg)
+                st.session_state.messages = cleaned_messages
+            
             return True
         else:
             st.error(result['message'])

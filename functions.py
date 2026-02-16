@@ -288,11 +288,16 @@ def delete_document(
         api_key=None, 
         base_url=None):
     """
-    Delete a document from LlamaCloud.
+    Fully delete a document from LlamaCloud.
     
-    Handles the "already deleted" case (status 400) by treating it as a
-    successful deletion and triggering a pipeline sync to clean up stale
-    references. Also syncs after a normal successful deletion.
+    Performs a three-step deletion to ensure the file is completely removed
+    from all layers:
+      1. Remove the file from the pipeline (DELETE /pipelines/{id}/files/{file_id})
+      2. Remove the underlying file from the project (DELETE /files/{file_id})
+      3. Sync the pipeline so the vector store drops its embeddings
+    
+    Also clears the cached query engine so subsequent queries won't reference
+    stale vectors.
     
     Args:
         file_id (str): The ID of the file to delete. Required.
@@ -302,7 +307,7 @@ def delete_document(
         base_url (str): Base URL for the API. Defaults to env var.
     
     Returns:
-        dict: Result dictionary with 'success' and optional 'message' keys.
+        dict: Result dictionary with 'success' and 'message' keys.
     
     Raises:
         ValueError: If file_id is not provided.
@@ -319,45 +324,82 @@ def delete_document(
         raise ValueError("Pipeline ID and API key are required")
     
     display_name = file_name or file_id
+    steps_completed = []
+    
+    headers = {
+        'Accept': 'application/json',
+        'Authorization': f'Bearer {api_key}'
+    }
     
     try:
-        url = f"{base_url}/pipelines/{pipeline_id}/files/{file_id}"
+        # --- Step 1: Remove file from the pipeline ---
+        pipeline_url = f"{base_url}/pipelines/{pipeline_id}/files/{file_id}"
+        r_pipeline = requests.delete(pipeline_url, headers=headers, timeout=30)
         
-        headers = {
-            'Accept': 'application/json',
-            'Authorization': f'Bearer {api_key}'
-        }
-        
-        response = requests.delete(url, headers=headers, timeout=30)
-        
-        if response.status_code in [200, 204]:
-            # Successful deletion — sync the pipeline to update its index
-            sync_result = sync_pipeline(pipeline_id, api_key, base_url)
-            sync_note = " (pipeline synced)" if sync_result['success'] else " (pipeline sync pending)"
-            return {
-                'success': True,
-                'message': f"Successfully deleted {display_name}{sync_note}"
-            }
+        if r_pipeline.status_code in [200, 204]:
+            steps_completed.append('pipeline')
+            logger.info(f"Step 1: Removed {display_name} from pipeline.")
         else:
             try:
-                error_detail = response.json()
+                error_detail = r_pipeline.json()
             except json.JSONDecodeError:
-                error_detail = response.text
+                error_detail = r_pipeline.text
             
-            # Handle "already deleted, please sync the pipeline" (status 400)
             detail_str = str(error_detail.get('detail', '')) if isinstance(error_detail, dict) else str(error_detail)
             if 'already deleted' in detail_str.lower():
-                logger.info(f"File {display_name} was already deleted. Triggering pipeline sync.")
-                sync_result = sync_pipeline(pipeline_id, api_key, base_url)
-                sync_note = " (pipeline synced)" if sync_result['success'] else " (pipeline sync pending)"
-                return {
-                    'success': True,
-                    'message': f"{display_name} was already deleted{sync_note}"
-                }
-            
+                steps_completed.append('pipeline (was already removed)')
+                logger.info(f"Step 1: {display_name} was already removed from pipeline.")
+            else:
+                logger.warning(f"Step 1 failed for {display_name}: {error_detail}")
+        
+        # --- Step 2: Delete the underlying file from the project ---
+        file_url = f"{base_url}/files/{file_id}"
+        r_file = requests.delete(file_url, headers=headers, timeout=30)
+        
+        if r_file.status_code in [200, 204]:
+            steps_completed.append('project file')
+            logger.info(f"Step 2: Deleted {display_name} from project files.")
+        elif r_file.status_code == 404:
+            steps_completed.append('project file (was already gone)')
+            logger.info(f"Step 2: {display_name} was already deleted from project.")
+        else:
+            try:
+                file_error = r_file.json()
+            except json.JSONDecodeError:
+                file_error = r_file.text
+            logger.warning(f"Step 2 failed for {display_name}: status {r_file.status_code}, {file_error}")
+        
+        # --- Step 3: Sync the pipeline to update the vector store ---
+        sync_result = sync_pipeline(pipeline_id, api_key, base_url)
+        if sync_result['success']:
+            steps_completed.append('pipeline sync')
+            logger.info(f"Step 3: Pipeline sync triggered for {display_name}.")
+        else:
+            logger.warning(f"Step 3: Pipeline sync failed: {sync_result['message']}")
+        
+        # --- Step 4: Clear cached query engine so it rebuilds ---
+        _cache['query_engine'] = None
+        steps_completed.append('cache cleared')
+        
+        # Determine overall success
+        # Success if we completed at least the pipeline removal and file deletion
+        pipeline_ok = any('pipeline' in s for s in steps_completed)
+        file_ok = any('project file' in s for s in steps_completed)
+        
+        if pipeline_ok and file_ok:
+            return {
+                'success': True,
+                'message': f"Successfully deleted {display_name} (steps: {', '.join(steps_completed)})"
+            }
+        elif pipeline_ok or file_ok:
+            return {
+                'success': True,
+                'message': f"Partially deleted {display_name} (steps: {', '.join(steps_completed)}). Full removal will complete after pipeline sync."
+            }
+        else:
             return {
                 'success': False,
-                'message': f"Failed to delete {display_name} (status {response.status_code}): {error_detail}"
+                'message': f"Failed to delete {display_name}. No deletion steps succeeded."
             }
     except requests.RequestException as e:
         return {

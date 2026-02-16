@@ -20,6 +20,9 @@ from functions import (
     create_query_engine,
     extract_response_text,
     extract_source_nodes,
+    parse_document_metadata,
+    validate_settings,
+    clear_cache,
 )
 
 # Configuration constants for UI
@@ -121,7 +124,12 @@ def render():
                     if sources:
                         with st.expander("📚 Sources Used", expanded=False):
                             for idx, source in enumerate(sources, 1):
-                                st.markdown(f"**Source {idx}:** {source.get('file_name', 'Unknown')}")
+                                header = f"**Source {idx}:** {source.get('file_name', 'Unknown')}"
+                                if source.get('creation_date'):
+                                    header += f" — 📅 {source['creation_date']}"
+                                if source.get('doc_no'):
+                                    header += f" (No. {source['doc_no']})"
+                                st.markdown(header)
                                 if source.get('text'):
                                     text = source['text']
                                     preview = f"_{text[:MAX_SOURCE_TEXT_LENGTH]}..._" if len(

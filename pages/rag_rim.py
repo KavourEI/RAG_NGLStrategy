@@ -61,9 +61,9 @@ def render():
             st.error(f"Error fetching documents: {str(e)}")
             return [{'name': 'current.pdf', 'id': None}]  # Fallback
 
-    def handle_delete_document(file_id, file_name):
+    def handle_delete_document(file_id, file_name, doc_id=None, project_file_id=None):
         """Handle document deletion with full cleanup: API, cache, chat history."""
-        result = delete_document(file_id, file_name)
+        result = delete_document(file_id, file_name, doc_id=doc_id, project_file_id=project_file_id)
         if result['success']:
             st.success(result['message'])
             
@@ -184,16 +184,11 @@ def render():
             st.session_state.uploaded_documents = fetch_documents_with_error_handling()
 
         # Display document list with delete buttons
-        # Filter out stale entries for files we already deleted this session
-        deleted_ids = st.session_state.get("deleted_file_ids", set())
-        visible_docs = [
-            doc for doc in st.session_state.uploaded_documents
-            if (doc.get('id') if isinstance(doc, dict) else None) not in deleted_ids
-        ]
-        
-        for idx, doc in enumerate(visible_docs):
+        for idx, doc in enumerate(st.session_state.uploaded_documents):
             doc_name = doc['name'] if isinstance(doc, dict) else doc
             doc_id = doc.get('id') if isinstance(doc, dict) else None
+            doc_hash = doc.get('doc_id') if isinstance(doc, dict) else None
+            doc_project_file_id = doc.get('project_file_id') if isinstance(doc, dict) else None
 
             col1, col2 = st.columns([3, 1])
             with col1:
@@ -201,7 +196,7 @@ def render():
             with col2:
                 if doc_id:
                     if st.button("🗑️", key=f"delete_{idx}", help=f"Delete {doc_name}"):
-                        if handle_delete_document(doc_id, doc_name):
+                        if handle_delete_document(doc_id, doc_name, doc_id=doc_hash, project_file_id=doc_project_file_id):
                             st.session_state.uploaded_documents = fetch_documents_with_error_handling()
                             st.rerun()
 
